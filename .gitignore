@@ -9,3 +9,6 @@
 
 # Ignore temporary Excel "lock" files (files that start with ~$)
 ~$*
+
+# Ignore environment variables
+*.env
