@@ -5,7 +5,7 @@ import os
 # First edit on corp machine
 # Global dictionary to store objects
 reps = {}
-nameToID = {}
+IDtoName = {}
 States = {
     'AL', 'AK', 'AZ', 'AR', 'AB', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 
     'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 
@@ -13,6 +13,7 @@ States = {
     'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 
     'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
 }
+NamesNotFound = {}
 
 class Representatives():
     def __init__(self, name: str, ID: str, state: str, email: str, AE: str, territory: str, total: float):
@@ -62,10 +63,13 @@ def load_reps_from_xlsx():
     
     for _, row in df.iterrows():
         full_name = f"{str(row['First']).strip()} {str(row['Last']).strip()}"
+        clean_ID = str(row['ID']).replace(' ', '').strip()
+        # Map ID to name immediately so secondary IDs are captured
+        IDtoName[clean_ID] = full_name.lower()
+        
         total = float(row['LifeTime'])
         if full_name.lower() in reps:
             if reps[full_name.lower()].Lifetime_Total > total: continue
-        clean_ID = str(row['ID']).replace(' ', '').strip()
         state = str(row['State']).strip()
         email = str(row['Pol Email']).strip()
         territory = str(row['Territory']).strip()
@@ -77,7 +81,6 @@ def load_reps_from_xlsx():
         elif territory == 'East': AE = 'Rob Hunt'
         elif territory == 'West': AE = 'MeiWah Wong'
         reps[full_name.lower()] = Representatives(full_name, clean_ID, state, email, AE, territory, total)
-        nameToID[clean_ID] = full_name.lower()
             
 def attribute_accounts():
     global reps
@@ -89,12 +92,22 @@ def attribute_accounts():
     df.columns = df.columns.str.strip()
     
     for index, row in df.iterrows():
-        if str(row['Rep Name']).lower() in reps:
-            reps[row['Rep Name'].lower()].add_account(row['Total Assets'])
-        elif str(row['Rep Name'])[:5] in nameToID:
-            reps[nameToID[str(row['Rep Name'])[:5]]].add_account(row['Total Assets'])
+        clean_Name = str(row['Rep Name']).strip()
+        if clean_Name == 'nan': continue
+        
+        if clean_Name.lower() in reps:
+            reps[clean_Name.lower()].add_account(row['Total Assets'])
+            
+        elif clean_Name[:5] in IDtoName:
+            reps[IDtoName[clean_Name[:5]]].add_account(row['Total Assets'])
+
+        # Check full ID with spaces removed (Fixes "BCU 27" vs "BCU27")
+        elif clean_Name.replace(' ', '') in IDtoName:
+            reps[IDtoName[clean_Name.replace(' ', '')]].add_account(row['Total Assets'])
+
         else:
-            print(f"Error, name not found for {row['Rep Name']} on row {index}")
+            # print(f"Error, name not found for {row['Rep Name']} on row {index}")
+            NamesNotFound[clean_Name] = index
     
 def final_processing():
     global reps
@@ -108,9 +121,23 @@ def final_processing():
         elif reps[rep].Sum_of_Total_Assets < 10000000: reps[rep].Ranking = 'AA'
         else: reps[rep].Ranking = 'AAA'
         
-        
+def validation():
+    global reps
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    #sheet_name = input('Enter sheet name (it should be stored in the same directory as this script. Give the name and filetype, such as 12-25.xlsx): ')
+    file_path = os.path.join(base_dir, 'ModelProvider_AUM_RNC_DEC2025_Pivot.xlsx')
+    df = pd.read_excel(file_path, sheet_name='AUM Pivot - Dec 25', header=2)
+    df.columns = df.columns.str.strip()
+    
+    PivotTableReps = set()
+    for _, row in df.iterrows():
+        if str(row['Advisor Name']).lower() not in reps:
+            print(f'missed {row["Advisor Name"]} from my dataset')
+     
 load_reps_from_xlsx()
 attribute_accounts()
+validation()
 print(f'loaded {len(reps)} reps')
 while True:
     toPrint = input('Type Advisor name: ')
