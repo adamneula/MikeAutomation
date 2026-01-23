@@ -1,0 +1,11 @@
+# Ignore all Excel files
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
+
+# Ignore all CSV files
+*.csv
+
+# Ignore temporary Excel "lock" files (files that start with ~$)
+~$*
