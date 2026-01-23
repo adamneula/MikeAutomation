@@ -6,7 +6,6 @@ import os
 # Global dictionary to store objects
 reps = {}
 regionMap = {}
-AEMap = {}
 States = {
     'AL', 'AK', 'AZ', 'AR', 'AB', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 
     'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 
@@ -16,13 +15,13 @@ States = {
 }
 
 class Representatives():
-    def __init__(self, name: str, ID: str, state: str, email: str):
+    def __init__(self, name: str, ID: str, state: str, email: str, AE: str, territory: str):
         self.Advisor_Name = name
         self.Primary_Rep_ID = ID
         self.True_State = state
         self.Email = email
-        self.AE = None
-        self.Territory = None
+        self.AE = AE
+        self.Territory = territory
         self.Ranking = None
         self.Sum_of_Total_Assets = None
         self.Previous_Month_AUM = None
@@ -38,7 +37,7 @@ class Representatives():
         return self.Primary_Rep_ID == other.Primary_Rep_ID
     
     def __str__(self):
-        return f'{self.Advisor_Name} {self.True_State}'
+        return f'{self.Advisor_Name} {self.True_State} {self.Primary_Rep_ID} {self.Email} {self.Territory} AE: {self.AE}'
 
 def load_reps_from_csv():
     global reps
@@ -61,13 +60,21 @@ def load_reps_from_csv():
         full_name = f"{row['First']} {row['Last']}"
         clean_ID = str(row['ID']).replace(' ', '').strip()
         state = str(row['State']).strip()
-        if state not in States:
-            raise ValueError(f'Invalid state: {state} for {full_name} ({clean_ID})')
         email = str(row['Pol Email']).strip()
-        
-        reps[clean_ID] = Representatives(full_name, clean_ID, state, email)
+        territory = str(row['Territory']).strip()
+        AE = ""
+        #Sets central to East region
+        if territory == 'Central':
+            territory = 'East'
+            AE = 'Rob Hunt'
+        elif territory == 'East':
+            AE = 'Rob Hunt'
+        elif territory == 'West':
+            AE = 'MeiWah Wong'
+            
+        reps[clean_ID] = Representatives(full_name, clean_ID, state, email, AE, territory)
 
 
 load_reps_from_csv()
 print(f'loaded {len(reps)} reps')
-print(reps['GY309'])
+print(reps['60916'])
