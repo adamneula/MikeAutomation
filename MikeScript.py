@@ -77,7 +77,7 @@ def load_reps_from_xlsx():
         elif territory == 'East': AE = 'Rob Hunt'
         elif territory == 'West': AE = 'MeiWah Wong'
         reps[full_name.lower()] = Representatives(full_name, clean_ID, state, email, AE, territory, total)
-        nameToID[full_name.lower()] = clean_ID
+        nameToID[clean_ID] = full_name.lower()
             
 def attribute_accounts():
     global reps
@@ -88,9 +88,13 @@ def attribute_accounts():
     df = pd.read_excel(file_path, sheet_name='Account-Rep Details', header=0)
     df.columns = df.columns.str.strip()
     
-    for _, row in df.iterrows():
+    for index, row in df.iterrows():
         if str(row['Rep Name']).lower() in reps:
             reps[row['Rep Name'].lower()].add_account(row['Total Assets'])
+        elif str(row['Rep Name'])[:5] in nameToID:
+            reps[nameToID[str(row['Rep Name'])[:5]]].add_account(row['Total Assets'])
+        else:
+            print(f"Error, name not found for {row['Rep Name']} on row {index}")
     
 def final_processing():
     global reps
