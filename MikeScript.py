@@ -62,6 +62,8 @@ def load_reps_from_xlsx():
     df = df.dropna(subset=['ID'])
     
     for _, row in df.iterrows():
+        if str(row['First']).strip().lower() == 'cristophe': firstName = 'Christopher'
+        else: firstName = str(row['First']).strip()
         full_name = f"{str(row['First']).strip()} {str(row['Last']).strip()}"
         clean_ID = str(row['ID']).replace(' ', '').strip()
         # Map ID to name immediately so secondary IDs are captured
@@ -130,10 +132,13 @@ def validation():
     df = pd.read_excel(file_path, sheet_name='AUM Pivot - Dec 25', header=2)
     df.columns = df.columns.str.strip()
     
-    PivotTableReps = set()
+    missing_count = 0
     for _, row in df.iterrows():
-        if str(row['Advisor Name']).lower() not in reps:
-            print(f'missed {row["Advisor Name"]} from my dataset')
+        clean_name = ' '.join(str(row['Advisor Name']).split()).lower()
+        if clean_name == 'nan': continue
+        if clean_name not in reps:
+            missing_count += 1
+            print(f'missed {row["Advisor Name"]} from my dataset (miss {missing_count})')
      
 load_reps_from_xlsx()
 attribute_accounts()
