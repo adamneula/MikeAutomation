@@ -143,48 +143,46 @@ def validation():
             missing_count += 1
             print(f'missed {row["Advisor Name"]} from my dataset (miss {missing_count})')
 
-def load_previous_month_data(prev_month_filename):
-    global reps
+def load_previous_month_data(filename):
+    global reps, IDtoName
     
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(base_dir, prev_month_filename)
+    file_path = os.path.join(base_dir, filename)
     
-    # Based on the target file structure, the data usually starts at header index 2
-    # We use 'Row Labels' and 'Sum of Total Assets ' (note the trailing space)
+    # Load the previous month's pivot (assuming headers on row 2 as in your validation)
     try:
-        df_prev = pd.read_excel(file_path, sheet_name='AUM Pivot - Dec 25', header=2)
+        df_prev = pd.read_excel(file_path, sheet_name='AUM Pivot - Nov 25', header=2)
+        df_prev.columns = df_prev.columns.str.strip()
     except Exception as e:
-        print(f"Error loading previous month file: {e}")
+        print(f"Error loading {filename}: {e}")
         return
 
-    # Standardize column names
-    df_prev.columns = df_prev.columns.str.strip()
-    
     for _, row in df_prev.iterrows():
-        # Get the name from 'Row Labels' and normalize it to match our 'reps' keys
-        raw_name = str(row['Row Labels']).strip().lower()
+        # 1. Look up the user's ID and clean it
+        raw_id = str(row['Primary Rep ID']).replace(' ', '').strip().upper()
+        if raw_id == 'NAN': continue
         
-        # Skip empty rows or totals
-        if raw_name == 'nan' or raw_name == 'grand total':
-            continue
+        # 2. Find the proper name from the ID lookup list
+        proper_name_lower = IDtoName.get(raw_id)
+        
+        # 3. Use that name to go into the advisor object and add attributes
+        if proper_name_lower and proper_name_lower in reps:
+            advisor = reps[proper_name_lower]
             
-        # Match the advisor in our current hash table
-        if raw_name in reps:
-            prev_balance = float(row['Sum of Total Assets']) if pd.notna(row['Sum of Total Assets']) else 0.0
+            # Fill the instance variables
+            prev_bal = float(row['Sum of Total Assets']) if pd.notna(row['Sum of Total Assets']) else 0.0
+            advisor.Previous_Month_AUM = prev_bal
             
-            # Populate the instance variable
-            reps[raw_name].Previous_Month_AUM = prev_balance
-            
-            # Calculate Changes automatically
-            current_balance = reps[raw_name].Sum_of_Total_Assets
-            reps[raw_name].Dollar_Val_Change = current_balance - prev_balance
-            
-            if prev_balance > 0:
-                reps[raw_name].MoM_Change = (current_balance - prev_balance) / prev_balance
+            # Calculate changes automatically
+            advisor.Dollar_Val_Change = advisor.Sum_of_Total_Assets - prev_bal
+            if prev_bal > 0:
+                advisor.MoM_Change = advisor.Dollar_Val_Change / prev_bal
             else:
-                reps[raw_name].MoM_Change = 0.0
-                
-                
+                advisor.MoM_Change = 0.0
+        else:
+            # Optional: handle IDs found in the file that aren't in your current master list
+            pass
+            
                 
 def export_to_pivot(output_filename):
     global reps
@@ -253,11 +251,14 @@ def export_to_pivot(output_filename):
 load_reps_from_xlsx()
 attribute_accounts()
 final_processing()
+load_previous_month_data('ModelProvider_AUM_RNC_NOV2025_Pivot.xlsx')
 export_to_pivot('Adam_Dec_PivotTable.xlsx')
 
 while True:
     toPrint = input('Type Advisor name: ')
     if toPrint.lower() in reps:
         print(reps[toPrint.lower()])
+    if toPrint.lower() in IDtoName:
+        print(IDtoName[toPrint.lower])
     else:
         print('Not found')
