@@ -62,9 +62,12 @@ def load_reps_from_xlsx():
     df = df.dropna(subset=['ID'])
     
     for _, row in df.iterrows():
-        if str(row['First']).strip().lower() == 'cristophe': firstName = 'Christopher'
-        else: firstName = str(row['First']).strip()
-        full_name = f"{str(row['First']).strip()} {str(row['Last']).strip()}"
+        first_name = str(row['First']).strip()
+        last_name = str(row['Last']).strip()
+        if first_name.lower() == 'christophe': first_name = 'CHRISTOPHER'
+        elif first_name.lower() == 'theodore' and last_name.lower() == 'lund': first_name = 'TED'
+        elif first_name.lower() == 'danny' and last_name.lower() == 'creswell': first_name = 'DANIEL'
+        full_name = f"{first_name} {last_name}"
         clean_ID = str(row['ID']).replace(' ', '').strip()
         # Map ID to name immediately so secondary IDs are captured
         IDtoName[clean_ID] = full_name.lower()
@@ -139,11 +142,119 @@ def validation():
         if clean_name not in reps:
             missing_count += 1
             print(f'missed {row["Advisor Name"]} from my dataset (miss {missing_count})')
-     
+
+def load_previous_month_data(prev_month_filename):
+    global reps
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, prev_month_filename)
+    
+    # Based on the target file structure, the data usually starts at header index 2
+    # We use 'Row Labels' and 'Sum of Total Assets ' (note the trailing space)
+    try:
+        df_prev = pd.read_excel(file_path, sheet_name='AUM Pivot - Dec 25', header=2)
+    except Exception as e:
+        print(f"Error loading previous month file: {e}")
+        return
+
+    # Standardize column names
+    df_prev.columns = df_prev.columns.str.strip()
+    
+    for _, row in df_prev.iterrows():
+        # Get the name from 'Row Labels' and normalize it to match our 'reps' keys
+        raw_name = str(row['Row Labels']).strip().lower()
+        
+        # Skip empty rows or totals
+        if raw_name == 'nan' or raw_name == 'grand total':
+            continue
+            
+        # Match the advisor in our current hash table
+        if raw_name in reps:
+            prev_balance = float(row['Sum of Total Assets']) if pd.notna(row['Sum of Total Assets']) else 0.0
+            
+            # Populate the instance variable
+            reps[raw_name].Previous_Month_AUM = prev_balance
+            
+            # Calculate Changes automatically
+            current_balance = reps[raw_name].Sum_of_Total_Assets
+            reps[raw_name].Dollar_Val_Change = current_balance - prev_balance
+            
+            if prev_balance > 0:
+                reps[raw_name].MoM_Change = (current_balance - prev_balance) / prev_balance
+            else:
+                reps[raw_name].MoM_Change = 0.0
+                
+                
+                
+def export_to_pivot(output_filename):
+    global reps
+    
+    # 1. Prepare data list
+    data = []
+    
+    # Sort alphabetically by name to match the "Row Labels" pivot behavior
+    sorted_reps = sorted(reps.values(), key=lambda x: x.Advisor_Name)
+    
+    for r in sorted_reps:
+        # Standard filter: only include reps with a balance
+        if r.Sum_of_Total_Assets == 0:
+            continue
+            
+        row_data = {
+            # --- Left Side: Pivot Summary ---
+            'Row Labels': r.Advisor_Name.upper(),
+            'Primary Rep ID': r.Primary_Rep_ID,
+            'True State': r.True_State,
+            'AE': r.AE,
+            'Territory': r.Territory,
+            'Ranking': r.Ranking,           # Added here before assets
+            'Sum of Total Assets ': r.Sum_of_Total_Assets,
+            
+            # --- Spacers ---
+            'Spacer_1': '', 
+            'Spacer_2': '',
+            
+            # --- Right Side: Detailed View ---
+            'Advisor Name': r.Advisor_Name.upper(),
+            'True State.1': r.True_State,
+            'AE.1': r.AE,
+            'Territory.1': r.Territory,
+            'Email': r.Email,
+            'Primary Rep ID.1': r.Primary_Rep_ID,
+            'Ranking.1': r.Ranking,         # Duplicate for the detailed section
+            'Sum of Total Assets .1': r.Sum_of_Total_Assets,
+            'Previous Month AUM': r.Previous_Month_AUM,
+            'MoM Change': r.MoM_Change,
+            'Dollar Val Change': r.Dollar_Val_Change
+        }
+        data.append(row_data)
+    
+    # 2. Create DataFrame
+    df_output = pd.DataFrame(data)
+    
+    # Clean up spacer headers to appear blank in Excel
+    df_output = df_output.rename(columns={'Spacer_1': '', 'Spacer_2': ' '})
+    
+    # 3. Save to Excel
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    output_path = os.path.join(base_dir, output_filename)
+    
+    with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
+        df_output.to_excel(writer, sheet_name='AUM Pivot - Dec 25', index=False)
+        
+        # Formatting: Auto-adjust column widths
+        worksheet = writer.sheets['AUM Pivot - Dec 25']
+        for i, col in enumerate(df_output.columns):
+            column_len = max(df_output[col].astype(str).str.len().max(), len(col) + 2)
+            worksheet.set_column(i, i, column_len)
+            
+    print(f"File created successfully at: {output_path}")
+
 load_reps_from_xlsx()
 attribute_accounts()
-validation()
-print(f'loaded {len(reps)} reps')
+final_processing()
+export_to_pivot('Adam_Dec_PivotTable.xlsx')
+
 while True:
     toPrint = input('Type Advisor name: ')
     if toPrint.lower() in reps:
