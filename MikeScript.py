@@ -44,13 +44,13 @@ class Representatives():
     def add_account(self, amount):
         self.Sum_of_Total_Assets += amount
         
-def load_reps_from_xlsx():
+def load_reps_from_xlsx(Fit_List_Dir):
     global reps
     
     # Setup pathing
     base_dir = os.path.dirname(os.path.abspath(__file__))
     #sheet_name = input('Enter sheet name (it should be stored in the same directory as this script. Give the name and filetype, such as 12-25.xlsx): ')
-    file_path = os.path.join(base_dir, '12-25.xlsx')
+    file_path = os.path.join(base_dir, Fit_List_Dir)
     
     # header=1 skips the 'Owned...' row and uses the 'Code, Mutual...' row as headers
     df = pd.read_excel(file_path, sheet_name='FIT', header=1)
@@ -68,8 +68,7 @@ def load_reps_from_xlsx():
         elif first_name.lower() == 'theodore' and last_name.lower() == 'lund': first_name = 'TED'
         elif first_name.lower() == 'danny' and last_name.lower() == 'creswell': first_name = 'DANIEL'
         full_name = f"{first_name} {last_name}"
-        clean_ID = str(row['ID']).replace(' ', '').strip()
-        # Map ID to name immediately so secondary IDs are captured
+        clean_ID = str(row['ID']).replace(' ', '').strip()        
         IDtoName[clean_ID] = full_name.lower()
         
         total = float(row['LifeTime'])
@@ -87,12 +86,11 @@ def load_reps_from_xlsx():
         elif territory == 'West': AE = 'MeiWah Wong'
         reps[full_name.lower()] = Representatives(full_name, clean_ID, state, email, AE, territory, total)
             
-def attribute_accounts():
+def attribute_accounts(Primerica_Local_Dir):
     global reps
     
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    #sheet_name = input('Enter sheet name (it should be stored in the same directory as this script. Give the name and filetype, such as 12-25.xlsx): ')
-    file_path = os.path.join(base_dir, 'ModelProvider_AUM_RNC_DEC2025_Pivot.xlsx')
+    file_path = os.path.join(base_dir, Primerica_Local_Dir)
     df = pd.read_excel(file_path, sheet_name='Account-Rep Details', header=0)
     df.columns = df.columns.str.strip()
     
@@ -106,15 +104,13 @@ def attribute_accounts():
         elif clean_Name[:5] in IDtoName:
             reps[IDtoName[clean_Name[:5]]].add_account(row['Total Assets'])
 
-        # Check full ID with spaces removed (Fixes "BCU 27" vs "BCU27")
         elif clean_Name.replace(' ', '') in IDtoName:
             reps[IDtoName[clean_Name.replace(' ', '')]].add_account(row['Total Assets'])
 
         else:
-            # print(f"Error, name not found for {row['Rep Name']} on row {index}")
             NamesNotFound[clean_Name] = index
     
-def final_processing():
+def assign_ranking():
     global reps
     for rep in reps:
         #assign ranking
@@ -187,78 +183,170 @@ def load_previous_month_data(filename):
 def export_to_pivot(output_filename):
     global reps
     
-    # 1. Prepare data list
+    # 1. Prepare Data
     data = []
-    
-    # Sort alphabetically by name to match the "Row Labels" pivot behavior
     sorted_reps = sorted(reps.values(), key=lambda x: x.Advisor_Name)
     
     for r in sorted_reps:
-        # Standard filter: only include reps with a balance
-        if r.Sum_of_Total_Assets == 0:
+        if r.Sum_of_Total_Assets == 0 and (r.Previous_Month_AUM is None or r.Previous_Month_AUM == 0):
             continue
             
         row_data = {
-            # --- Left Side: Pivot Summary ---
             'Row Labels': r.Advisor_Name.upper(),
             'Primary Rep ID': r.Primary_Rep_ID,
             'True State': r.True_State,
             'AE': r.AE,
             'Territory': r.Territory,
-            'Ranking': r.Ranking,           # Added here before assets
             'Sum of Total Assets ': r.Sum_of_Total_Assets,
-            
-            # --- Spacers ---
-            'Spacer_1': '', 
-            'Spacer_2': '',
-            
-            # --- Right Side: Detailed View ---
+            'Spacer_1': '', 'Spacer_2': '',
             'Advisor Name': r.Advisor_Name.upper(),
             'True State.1': r.True_State,
             'AE.1': r.AE,
             'Territory.1': r.Territory,
             'Email': r.Email,
             'Primary Rep ID.1': r.Primary_Rep_ID,
-            'Ranking.1': r.Ranking,         # Duplicate for the detailed section
+            'Ranking.1': r.Ranking,
             'Sum of Total Assets .1': r.Sum_of_Total_Assets,
             'Previous Month AUM': r.Previous_Month_AUM,
             'MoM Change': r.MoM_Change,
             'Dollar Val Change': r.Dollar_Val_Change
         }
         data.append(row_data)
-    
-    # 2. Create DataFrame
-    df_output = pd.DataFrame(data)
-    
-    # Clean up spacer headers to appear blank in Excel
-    df_output = df_output.rename(columns={'Spacer_1': '', 'Spacer_2': ' '})
-    
-    # 3. Save to Excel
+
+    df_output = pd.DataFrame(data).rename(columns={'Spacer_1': '', 'Spacer_2': ' '})
     base_dir = os.path.dirname(os.path.abspath(__file__))
     output_path = os.path.join(base_dir, output_filename)
-    
-    with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-        df_output.to_excel(writer, sheet_name='AUM Pivot - Dec 25', index=False)
-        
-        # Formatting: Auto-adjust column widths
-        worksheet = writer.sheets['AUM Pivot - Dec 25']
-        for i, col in enumerate(df_output.columns):
-            column_len = max(df_output[col].astype(str).str.len().max(), len(col) + 2)
-            worksheet.set_column(i, i, column_len)
+
+    try:
+        with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
+            df_output.to_excel(writer, sheet_name='AUM Pivot - Dec 25', index=False)
+            workbook  = writer.book
+            worksheet = writer.sheets['AUM Pivot - Dec 25']
+
+            # --- Define Styles ---
+            dark_blue = workbook.add_format({'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 1, 'align': 'center'})
+            light_blue = workbook.add_format({'bg_color': "#C1C1FF", 'font_color': 'black', 'bold': True, 'border': 1, 'align': 'center'})
+            money_fmt = workbook.add_format({'num_format': '$#,##0', 'border': 1})
+            percent_fmt = workbook.add_format({'num_format': '0.0%', 'border': 1})
+            border_fmt = workbook.add_format({'border': 1})
             
-    print(f"File created successfully at: {output_path}")
+            # Ranking Legend Hex Codes (Updated with your swatch codes)
+            rank_colors = {
+                'AAA': '#00B050', 'AA': '#92D050', 'A': '#E2F0D9',
+                'BB': '#00B0F0', 'B': '#B4C6E7', 'C': '#FFFF00'
+            }
 
-load_reps_from_xlsx()
-attribute_accounts()
-final_processing()
-load_previous_month_data('ModelProvider_AUM_RNC_NOV2025_Pivot.xlsx')
-export_to_pivot('Adam_Dec_PivotTable.xlsx')
+            # --- Apply Formatting ---
+            # 1. Header Styling & Active Sort Buttons
+            # We explicitly set the autofilter across all columns (0 to end)
+            num_rows = len(df_output)
+            num_cols = len(df_output.columns)
+            worksheet.autofilter(0, 0, num_rows, num_cols - 1)
 
-while True:
-    toPrint = input('Type Advisor name: ')
-    if toPrint.lower() in reps:
-        print(reps[toPrint.lower()])
-    if toPrint.lower() in IDtoName:
-        print(IDtoName[toPrint.lower])
-    else:
-        print('Not found')
+            for col_num, value in enumerate(df_output.columns.values):
+                if col_num < 6: # Left side group
+                    worksheet.write(0, col_num, value, light_blue)
+                elif col_num > 7: # Right side group
+                    worksheet.write(0, col_num, value, dark_blue)
+                else: # Spacers G and H
+                    worksheet.write(0, col_num, "", border_fmt)
+
+            # 2. Column-Specific Formatting (Widths & Ranking Colors)
+            apply_excel_highlighting(workbook, worksheet, df_output)
+            for i, col in enumerate(df_output.columns):
+                max_len = max(df_output[col].astype(str).map(len).max(), len(str(col))) + 2
+                max_len = min(max_len, 50)
+                
+                # Apply column specific formatting
+                if any(x in col for x in ['Sum of Total Assets', 'AUM', 'Dollar']):
+                    worksheet.set_column(i, i, 18, money_fmt)
+                elif 'Change' in col:
+                    worksheet.set_column(i, i, 12, percent_fmt)
+                else:
+                    worksheet.set_column(i, i, max_len, border_fmt)
+
+            # --- Final Source Tabs ---
+            try:
+                fit_path = os.path.join(base_dir, '12-25.xlsx')
+                pd.read_excel(fit_path, sheet_name='FIT', header=1).to_excel(writer, sheet_name='Source_FIT', index=False)
+                details_path = os.path.join(base_dir, 'ModelProvider_AUM_RNC_DEC2025_Pivot.xlsx')
+                pd.read_excel(details_path, sheet_name='Account-Rep Details').to_excel(writer, sheet_name='Source_Details', index=False)
+            except:
+                pass
+
+        print(f"\nSUCCESS: Report generated at {output_path}")
+    
+    except Exception as e:
+        print(f"\nERROR: {e}")
+        
+def apply_excel_highlighting(workbook, worksheet, df):
+    # 1. Define the Ranking Legend Hex Codes
+    rank_colors = {
+        'AAA': '#00B050', 'AA': '#92D050', 'A': '#E2F0D9',
+        'BB': '#00B0F0', 'B': '#B4C6E7', 'C': '#FFFF00'
+    }
+
+    # 2. Pre-create formats
+    # Note: Positive and Negative are independent of the AAA-C ranking
+    pos_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'border': 1, 'num_format': '0.00%', 'align': 'center', 'font_color': '#000000'})
+    neg_fmt = workbook.add_format({'bg_color': '#FFC7CE', 'border': 1, 'num_format': '0.00%', 'align': 'center', 'font_color': '#9C0006'})
+    
+    rank_formats = {}
+    for rank, hex_code in rank_colors.items():
+        rank_formats[rank] = {
+            'text': workbook.add_format({'bg_color': hex_code, 'border': 1, 'align': 'center'}),
+            'money': workbook.add_format({'bg_color': hex_code, 'border': 1, 'num_format': '$#,##0'})
+        }
+
+    # 3. Identify column indices safely
+    try:
+        rank_col_idx = df.columns.get_loc('Ranking.1')
+        assets_col_idx = df.columns.get_loc('Sum of Total Assets ')
+        assets1_col_idx = df.columns.get_loc('Sum of Total Assets .1')
+        mom_change_idx = df.columns.get_loc('MoM Change')
+    except KeyError as e:
+        print(f"Warning: Could not find column {e} for highlighting.")
+        return
+
+    # 4. Loop through every row
+    for row_num in range(len(df)):
+        # --- Handle Ranking and Assets ---
+        rank_val = str(df.iloc[row_num]['Ranking.1']).strip()
+        
+        if rank_val in rank_formats:
+            # Highlight Ranking
+            worksheet.write(row_num + 1, rank_col_idx, rank_val, rank_formats[rank_val]['text'])
+            
+            # Highlight both Asset columns with the same rank color
+            asset_val = df.iloc[row_num]['Sum of Total Assets .1']
+            worksheet.write(row_num + 1, assets_col_idx, asset_val, rank_formats[rank_val]['money'])
+            worksheet.write(row_num + 1, assets1_col_idx, asset_val, rank_formats[rank_val]['money'])
+        
+        # --- Handle MoM Change Highlighting ---
+        mom_change_val = df.iloc[row_num]['MoM Change']
+        
+        # Check if it's a number and not NaN
+        if pd.notna(mom_change_val):
+            if mom_change_val > 0:
+                worksheet.write(row_num + 1, mom_change_idx, mom_change_val, pos_fmt)
+            elif mom_change_val < 0:
+                worksheet.write(row_num + 1, mom_change_idx, mom_change_val, neg_fmt)
+        
+fitlist = input('Paste the relative path of the fit list (should be stored in the local directory, as with the rest of these files) below\n')
+primerica_sheet = input('Paste the relative path of the sheet from Primerica\n')
+prev_table = input("Paste the relative path of last month's pivot table\n")
+to_make = input("Type the name you want the pivot table to have (without file extension)\n") + '.xlsx'
+load_reps_from_xlsx(fitlist)
+attribute_accounts(primerica_sheet)
+assign_ranking()
+load_previous_month_data(prev_table)
+export_to_pivot(to_make)
+
+# while True:
+#     toPrint = input('Type Advisor name: ')
+#     if toPrint.lower() in reps:
+#         print(reps[toPrint.lower()])
+#     elif toPrint.lower() in IDtoName:
+#         print(IDtoName[toPrint.lower])
+#     else:
+#         print('Not found')
