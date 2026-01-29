@@ -48,12 +48,12 @@ def load_reps_from_xlsx(Fit_List_Dir):
     global reps
     
     # Setup pathing
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    #base_dir = os.path.dirname(os.path.abspath(__file__))
     #sheet_name = input('Enter sheet name (it should be stored in the same directory as this script. Give the name and filetype, such as 12-25.xlsx): ')
-    file_path = os.path.join(base_dir, Fit_List_Dir)
+    #file_path = os.path.join(base_dir, Fit_List_Dir)
     
     # header=1 skips the 'Owned...' row and uses the 'Code, Mutual...' row as headers
-    df = pd.read_excel(file_path, sheet_name='FIT', header=1)
+    df = pd.read_excel(Fit_List_Dir, sheet_name='FIT', header=1)
     
     # Standardize column names to remove any accidental spaces
     df.columns = df.columns.str.strip()
@@ -79,19 +79,22 @@ def load_reps_from_xlsx(Fit_List_Dir):
         territory = str(row['Territory']).strip()
         AE = ''
         #Sets central to East region and assigns AE accordingly
-        if territory == 'Central':
+        if state.lower() in ['ok', 'ks']:
+            territory = 'East'
+            AE = 'Rob Hunt'
+        if territory.lower() == 'central':
             territory = 'East' 
             AE = 'Rob Hunt'
         elif territory == 'East': AE = 'Rob Hunt'
         elif territory == 'West': AE = 'MeiWah Wong'
         reps[full_name.lower()] = Representatives(full_name, clean_ID, state, email, AE, territory, total)
             
-def attribute_accounts(Primerica_Local_Dir):
+def attribute_accounts(Primerica_Dir):
     global reps
     
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(base_dir, Primerica_Local_Dir)
-    df = pd.read_excel(file_path, sheet_name='Account-Rep Details', header=0)
+    # base_dir = os.path.dirname(os.path.abspath(__file__))
+    # file_path = os.path.join(base_dir, Primerica_Dir)
+    df = pd.read_excel(Primerica_Dir, sheet_name='Account-Rep Details', header=0)
     df.columns = df.columns.str.strip()
     
     for index, row in df.iterrows():
@@ -142,12 +145,12 @@ def validation():
 def load_previous_month_data(filename):
     global reps, IDtoName
     
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(base_dir, filename)
+    # base_dir = os.path.dirname(os.path.abspath(__file__))
+    # file_path = os.path.join(base_dir, filename)
     
     # Load the previous month's pivot (assuming headers on row 2 as in your validation)
     try:
-        df_prev = pd.read_excel(file_path, sheet_name='AUM Pivot - Nov 25', header=2)
+        df_prev = pd.read_excel(filename, sheet_name='AUM Pivot - Nov 25', header=2)
         df_prev.columns = df_prev.columns.str.strip()
     except Exception as e:
         print(f"Error loading {filename}: {e}")
@@ -225,8 +228,8 @@ def export_to_pivot(output_filename):
 
             # --- Define Styles ---
             dark_blue = workbook.add_format({'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 1, 'align': 'center'})
-            light_blue = workbook.add_format({'bg_color': "#C1C1FF", 'font_color': 'black', 'bold': True, 'border': 1, 'align': 'center'})
-            money_fmt = workbook.add_format({'num_format': '$#,##0', 'border': 1})
+            light_blue = workbook.add_format({'bg_color': "#C7E5F3", 'font_color': 'black', 'bold': True, 'border': 1, 'align': 'center'})
+            money_fmt = workbook.add_format({'num_format': '$#,##0.00', 'border': 1})
             percent_fmt = workbook.add_format({'num_format': '0.0%', 'border': 1})
             border_fmt = workbook.add_format({'border': 1})
             
@@ -241,7 +244,9 @@ def export_to_pivot(output_filename):
             # We explicitly set the autofilter across all columns (0 to end)
             num_rows = len(df_output)
             num_cols = len(df_output.columns)
-            worksheet.autofilter(0, 0, num_rows, num_cols - 1)
+            #This puts the sorting box on the appropriate columns
+            worksheet.autofilter(0, 0, num_rows, 1)
+            worksheet.autofilter(0, 8, num_rows, 18)
 
             for col_num, value in enumerate(df_output.columns.values):
                 if col_num < 6: # Left side group
@@ -258,8 +263,8 @@ def export_to_pivot(output_filename):
                 max_len = min(max_len, 50)
                 
                 # Apply column specific formatting
-                if any(x in col for x in ['Sum of Total Assets', 'AUM', 'Dollar']):
-                    worksheet.set_column(i, i, 18, money_fmt)
+                if any(x.lower() in col for x in ['assets', 'aum', 'dollar']):
+                    worksheet.set_column(i, i, 21, money_fmt)
                 elif 'Change' in col:
                     worksheet.set_column(i, i, 12, percent_fmt)
                 else:
@@ -295,7 +300,7 @@ def apply_excel_highlighting(workbook, worksheet, df):
     for rank, hex_code in rank_colors.items():
         rank_formats[rank] = {
             'text': workbook.add_format({'bg_color': hex_code, 'border': 1, 'align': 'center'}),
-            'money': workbook.add_format({'bg_color': hex_code, 'border': 1, 'num_format': '$#,##0'})
+            'money': workbook.add_format({'bg_color': hex_code, 'border': 1, 'num_format': '$#,##0.00'})
         }
 
     # 3. Identify column indices safely
@@ -331,22 +336,22 @@ def apply_excel_highlighting(workbook, worksheet, df):
                 worksheet.write(row_num + 1, mom_change_idx, mom_change_val, pos_fmt)
             elif mom_change_val < 0:
                 worksheet.write(row_num + 1, mom_change_idx, mom_change_val, neg_fmt)
-        
-fitlist = input('Paste the relative path of the fit list (should be stored in the local directory, as with the rest of these files) below\n')
-primerica_sheet = input('Paste the relative path of the sheet from Primerica\n')
-prev_table = input("Paste the relative path of last month's pivot table\n")
-to_make = input("Type the name you want the pivot table to have (without file extension)\n") + '.xlsx'
+    
+fitlist = input('Enter FULL PATH of the fit list: ').strip().replace('"', '')
+primerica_sheet = input('Enter FULL PATH of the Primerica sheet: ').strip().replace('"', '')
+prev_table = input("Enter FULL PATH of last month's pivot: ").strip().replace('"', '')
+to_make = input("Enter FULL PATH for the new file (include .xlsx): ").strip().replace('"', '')
 load_reps_from_xlsx(fitlist)
 attribute_accounts(primerica_sheet)
 assign_ranking()
 load_previous_month_data(prev_table)
 export_to_pivot(to_make)
 
-# while True:
-#     toPrint = input('Type Advisor name: ')
-#     if toPrint.lower() in reps:
-#         print(reps[toPrint.lower()])
-#     elif toPrint.lower() in IDtoName:
-#         print(IDtoName[toPrint.lower])
-#     else:
-#         print('Not found')
+while True:
+    toPrint = input('Type Advisor name: ')
+    if toPrint.lower() in reps:
+        print(reps[toPrint.lower()])
+    elif toPrint.lower() in IDtoName:
+        print(IDtoName[toPrint.lower])
+    else:
+        print('Not found')
