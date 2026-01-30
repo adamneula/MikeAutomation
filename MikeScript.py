@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from datetime import datetime
 
 # First edit on corp machine
 # Global dictionary to store objects
@@ -223,9 +224,9 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
 
     try:
         with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-            df_output.to_excel(writer, sheet_name='AUM Pivot - Dec 25', index=False)
+            df_output.to_excel(writer, sheet_name=f'AUM Pivot - {datetime.now().strftime("%b %y")}', index=False)
             workbook  = writer.book
-            worksheet = writer.sheets['AUM Pivot - Dec 25']
+            worksheet = writer.sheets[f'AUM Pivot - {datetime.now().strftime("%b %y")}']
 
             # --- Define Styles ---
             dark_blue = workbook.add_format({'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 1, 'align': 'center'})
@@ -289,8 +290,7 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
         print(f"\nSUCCESS: Report generated at {output_path}")
     
     except Exception as e:
-        # print(f"\nERROR: {e}")
-        pass
+        print(f"\nERROR: {e}")
         
 def apply_excel_highlighting(workbook, worksheet, df):
     # 1. Define the Ranking Legend Hex Codes
