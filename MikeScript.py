@@ -44,7 +44,7 @@ class Representatives():
     def add_account(self, amount):
         self.Sum_of_Total_Assets += amount
         
-def load_reps_from_xlsx(Fit_List_Dir):
+def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
     global reps
     
     # Setup pathing
@@ -53,7 +53,7 @@ def load_reps_from_xlsx(Fit_List_Dir):
     #file_path = os.path.join(base_dir, Fit_List_Dir)
     
     # header=1 skips the 'Owned...' row and uses the 'Code, Mutual...' row as headers
-    df = pd.read_excel(Fit_List_Dir, sheet_name='FIT', header=1)
+    df = pd.read_excel(Fit_List_Dir, sheet_name=Fit_List_Sheet_Name, header=1)
     
     # Standardize column names to remove any accidental spaces
     df.columns = df.columns.str.strip()
@@ -89,21 +89,23 @@ def load_reps_from_xlsx(Fit_List_Dir):
         elif territory == 'West': AE = 'MeiWah Wong'
         reps[full_name.lower()] = Representatives(full_name, clean_ID, state, email, AE, territory, total)
             
-def attribute_accounts(Primerica_Dir):
+def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
     global reps
     
     # base_dir = os.path.dirname(os.path.abspath(__file__))
     # file_path = os.path.join(base_dir, Primerica_Dir)
-    df = pd.read_excel(Primerica_Dir, sheet_name='Account-Rep Details', header=0)
+    df = pd.read_excel(Primerica_Dir, sheet_name=Primerica_Sheet_Name, header=0)
     df.columns = df.columns.str.strip()
     
     for index, row in df.iterrows():
         clean_Name = str(row['Rep Name']).strip()
         if clean_Name == 'nan': continue
+        elif clean_Name.lower().split()[0] == 'christophe':
+            clean_Name = " ".join(['CHRISTOPHER'] + clean_Name.upper().split()[1:])
+        elif clean_Name.lower() == 'danny creswell': clean_Name = 'DANIEL CRESWELL'
         
         if clean_Name.lower() in reps:
             reps[clean_Name.lower()].add_account(row['Total Assets'])
-            
         elif clean_Name[:5] in IDtoName:
             reps[IDtoName[clean_Name[:5]]].add_account(row['Total Assets'])
 
@@ -142,7 +144,7 @@ def validation():
             missing_count += 1
             print(f'missed {row["Advisor Name"]} from my dataset (miss {missing_count})')
 
-def load_previous_month_data(filename):
+def load_previous_month_data(filename, sheetname):
     global reps, IDtoName
     
     # base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -150,7 +152,7 @@ def load_previous_month_data(filename):
     
     # Load the previous month's pivot (assuming headers on row 2 as in your validation)
     try:
-        df_prev = pd.read_excel(filename, sheet_name='AUM Pivot - Nov 25', header=2)
+        df_prev = pd.read_excel(filename, sheet_name=sheetname, header=2)
         df_prev.columns = df_prev.columns.str.strip()
     except Exception as e:
         print(f"Error loading {filename}: {e}")
@@ -183,7 +185,7 @@ def load_previous_month_data(filename):
             pass
             
                 
-def export_to_pivot(output_filename):
+def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='', details_sheet='', pivot_path='', pivot_sheet=''):
     global reps
     
     # 1. Prepare Data
@@ -259,11 +261,18 @@ def export_to_pivot(output_filename):
             # 2. Column-Specific Formatting (Widths & Ranking Colors)
             apply_excel_highlighting(workbook, worksheet, df_output)
             for i, col in enumerate(df_output.columns):
-                max_len = max(df_output[col].astype(str).map(len).max(), len(str(col))) + 2
-                max_len = min(max_len, 50)
+                # This safely calculates length even if there are floats/NaNs
+                # We convert every item to a string, find its length, and take the max
+                column_data = df_output[col].fillna('') # Fill NaNs with empty strings first
+                max_len = max(
+                    column_data.astype(str).map(len).max(), 
+                    len(str(col))
+                ) + 2
+                
+                max_len = min(max_len, 50) # Keep it reasonable
                 
                 # Apply column specific formatting
-                if any(x.lower() in col for x in ['assets', 'aum', 'dollar']):
+                if any(x.lower() in col.lower() for x in ['assets', 'aum', 'dollar']):
                     worksheet.set_column(i, i, 21, money_fmt)
                 elif 'Change' in col:
                     worksheet.set_column(i, i, 12, percent_fmt)
@@ -272,17 +281,19 @@ def export_to_pivot(output_filename):
 
             # --- Final Source Tabs ---
             try:
-                fit_path = os.path.join(base_dir, '12-25.xlsx')
-                pd.read_excel(fit_path, sheet_name='FIT', header=1).to_excel(writer, sheet_name='Source_FIT', index=False)
-                details_path = os.path.join(base_dir, 'ModelProvider_AUM_RNC_DEC2025_Pivot.xlsx')
-                pd.read_excel(details_path, sheet_name='Account-Rep Details').to_excel(writer, sheet_name='Source_Details', index=False)
+                pd.read_excel(fit_path, sheet_name=fit_sheet, header=1).to_excel(writer, sheet_name='Source_FIT', index=False)
+                pd.read_excel(details_path, sheet_name=details_sheet).to_excel(writer, sheet_name='Source_Details', index=False)
+                pd.read_excel(pivot_path, sheet_name=pivot_sheet).to_excel(writer, sheet_name='Source_Pivots', index=False)
+                print('should have written tabs')
             except:
-                pass
+                print('should have excepted from writing tabs')
+                print(f"\nSOURCE TAB ERROR: {e}")
 
         print(f"\nSUCCESS: Report generated at {output_path}")
     
     except Exception as e:
-        print(f"\nERROR: {e}")
+        # print(f"\nERROR: {e}")
+        pass
         
 def apply_excel_highlighting(workbook, worksheet, df):
     # 1. Define the Ranking Legend Hex Codes
@@ -338,14 +349,18 @@ def apply_excel_highlighting(workbook, worksheet, df):
                 worksheet.write(row_num + 1, mom_change_idx, mom_change_val, neg_fmt)
     
 fitlist = input('Enter FULL PATH of the fit list: ').strip().replace('"', '')
-primerica_sheet = input('Enter FULL PATH of the Primerica sheet: ').strip().replace('"', '')
-prev_table = input("Enter FULL PATH of last month's pivot: ").strip().replace('"', '')
-to_make = input("Enter FULL PATH for the new file (include .xlsx): ").strip().replace('"', '')
-load_reps_from_xlsx(fitlist)
-attribute_accounts(primerica_sheet)
+fitlist_sheet = input('Enter the name of the fit list sheet within that excel file (case sensitive): ')
+primerica_xlsx = input('Enter FULL PATH of the Primerica excel file: ').strip().replace('"', '')
+primerica_sheet = input('Enter the name of the Primerica sheet within that excel file (case sensitive): ')
+prev_table = input("Enter FULL PATH of last month's pivot excel file: ").strip().replace('"', '')
+prev_sheet = input('Enter the name of the pivot table sheet on that excel file (case sensitive): ')
+to_make = input('Enter name for the new file (include file extension): ').strip().replace('"', '')
+
+load_reps_from_xlsx(fitlist, fitlist_sheet)
+attribute_accounts(primerica_xlsx, primerica_sheet)
 assign_ranking()
-load_previous_month_data(prev_table)
-export_to_pivot(to_make)
+load_previous_month_data(prev_table, prev_sheet)
+export_to_pivot(to_make, fitlist, fitlist_sheet, primerica_xlsx, primerica_sheet, prev_table, prev_sheet)
 
 while True:
     toPrint = input('Type Advisor name: ')
