@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 from datetime import datetime
+import numpy as np
 
 # First edit on corp machine
 # Global dictionary to store objects
@@ -180,11 +181,7 @@ def load_previous_month_data(filename, sheetname):
                 advisor.MoM_Change = advisor.Dollar_Val_Change / prev_bal
             else:
                 advisor.MoM_Change = 0.0
-        else:
-            # Optional: handle IDs found in the file that aren't in your current master list
-            pass
-            
-                
+                           
 def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='', details_sheet='', pivot_path='', pivot_sheet=''):
     global reps
     
@@ -291,7 +288,35 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
     
     except Exception as e:
         print(f"\nERROR: {e}")
+
+def rep_lookup(input_str):
+    global reps, IDtoName
+    
+    if not input_str or str(input_str).lower() == 'nan':
+        return None
+
+    input_clean = str(input_str).strip().upper()
+    resolved_name_lower = IDtoName.get(input_clean)
+    
+    if not resolved_name_lower:
+        resolved_name_lower = IDtoName.get(input_clean.replace(" ", ""))
+
+    target_name_lower = resolved_name_lower if resolved_name_lower else input_clean.lower()
+
+    parts = target_name_lower.split()
+    if parts:
+        first = parts[0]
+        last = " ".join(parts[1:])
         
+        if first == 'christophe':
+            target_name_lower = " ".join(['christopher', last])
+        elif first == 'danny' and last == 'creswell':
+            target_name_lower = 'daniel creswell'
+        elif first == 'theodore' and last == 'lund':
+            target_name_lower = 'ted lund'
+
+    return reps.get(target_name_lower)
+    
 def apply_excel_highlighting(workbook, worksheet, df):
     # 1. Define the Ranking Legend Hex Codes
     rank_colors = {
@@ -345,25 +370,80 @@ def apply_excel_highlighting(workbook, worksheet, df):
             elif mom_change_val < 0:
                 worksheet.write(row_num + 1, mom_change_idx, mom_change_val, neg_fmt)
     
-fitlist = input('Enter FULL PATH of the fit list: ').strip().replace('"', '')
-fitlist_sheet = input('Enter the name of the fit list sheet within that excel file (case sensitive): ')
-primerica_xlsx = input('Enter FULL PATH of the Primerica excel file: ').strip().replace('"', '')
-primerica_sheet = input('Enter the name of the Primerica sheet within that excel file (case sensitive): ')
-prev_table = input("Enter FULL PATH of last month's pivot excel file: ").strip().replace('"', '')
-prev_sheet = input('Enter the name of the pivot table sheet on that excel file (case sensitive): ')
-to_make = input('Enter name for the new file (include file extension): ').strip().replace('"', '')
+def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
+    df = pd.read_excel(thisMonth, sheet_name=thisMonthSheet)
+    df.columns = df.columns.str.strip()
+    
+    df = df[df['ModelName'] == 'Genter Capital Dividend Income'].copy()
+    
+    df_prev_raw = pd.read_excel(lastMonth, sheet_name=lastMonthSheet)
+    df_prev_raw.columns = df_prev_raw.columns.str.strip()
+    prev_assets_map = dict(zip(df_prev_raw['accountid'], df_prev_raw['Total Assets']))
+    
+    rep_name_idx = df.columns.get_loc('Rep Name')
+    #V
+    df.insert(rep_name_idx + 1, 'Rep ID', df['Rep Name'].apply(lambda x: rep_lookup(x).Primary_Rep_ID if rep_lookup(x) else 'Not Found'))
+    #AF
+    df['Prev Month Assets'] = df['accountid'].map(prev_assets_map).fillna(0)
+    #AG
+    df['Total Assets'] = pd.to_numeric(df['Total Assets'], errors='coerce').fillna(0)
+    df['Prev Month Assets'] = pd.to_numeric(df['Prev Month Assets'], errors='coerce').fillna(0)
+    df['$ Change'] = df['Total Assets'] - df['Prev Month Assets']
+    #AH
+    df['% Change'] = np.where(df['Prev Month Assets'] > 0, df['$ Change'] / df['Prev Month Assets'], 0)
+    #AI
+    mode_map = df.groupby('Rep Name')['Total Assets'].apply(lambda x: x.mode().iloc[0] if not x.mode().empty else 0)
+    df['Mode.Sngl'] = df['Rep Name'].map(mode_map)
+    #AJ
+    df['Flow'] = 'To be figured out'
+    #AK
+    df['Status'] = np.where(df['Prev Month Assets'] > 0, 'Addition', 'New Open')
+    #AL
+    df['True State'] = df['Rep Name'].apply(lambda x: rep_lookup(x).True_State if rep_lookup(x) else '')
+    #AM
+    df['AE'] = df['Rep Name'].apply(lambda x: rep_lookup(x).AE if rep_lookup(x) else '')
+    #AN
+    df['Territory'] = df['Rep Name'].apply(lambda x: rep_lookup(x).Territory if rep_lookup(x) else '')
+    
+    output_file = "Dividend_Income_Detailed_Report.xlsx"
+    with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
+        sheet_name="Primerica Div Model"
+        df.to_excel(writer, sheet_name=sheet_name, index=False)
+        
+        workbook = writer.book
+        worksheet = writer.sheets[sheet_name]
+        
+        money_fmt = workbook.add_format({'num_format': '$#,##0.00'})
+        worksheet.set_column('AF:AG', 18, money_fmt)
+        worksheet.set_column('AH:AH', 12, workbook.add_format({'num_format': '0.0%'}))
+    print(f"SUCCESS: Detailed report saved to {os.path.abspath(output_file)}")
+        
+def AUM_Pivot_Pipeline():
+    fitlist = input('Enter FULL PATH of the fit list: ').strip().replace('"', '')
+    fitlist_sheet = input('Enter the name of the fit list sheet within that excel file (case sensitive): ')
+    primerica_xlsx = input('Enter FULL PATH of the Primerica excel file: ').strip().replace('"', '')
+    primerica_sheet = input('Enter the name of the Primerica sheet within that excel file (case sensitive): ')
+    prev_table = input("Enter FULL PATH of last month's pivot excel file: ").strip().replace('"', '')
+    prev_sheet = input('Enter the name of the pivot table sheet on that excel file (case sensitive): ')
+    to_make = input('Enter name for the new file (include file extension): ').strip().replace('"', '')
 
-load_reps_from_xlsx(fitlist, fitlist_sheet)
-attribute_accounts(primerica_xlsx, primerica_sheet)
-assign_ranking()
-load_previous_month_data(prev_table, prev_sheet)
-export_to_pivot(to_make, fitlist, fitlist_sheet, primerica_xlsx, primerica_sheet, prev_table, prev_sheet)
+    load_reps_from_xlsx(fitlist, fitlist_sheet)
+    attribute_accounts(primerica_xlsx, primerica_sheet)
+    assign_ranking()
+    load_previous_month_data(prev_table, prev_sheet)
+    export_to_pivot(to_make, fitlist, fitlist_sheet, primerica_xlsx, primerica_sheet, prev_table, prev_sheet)
 
-while True:
-    toPrint = input('Type Advisor name: ')
-    if toPrint.lower() in reps:
-        print(reps[toPrint.lower()])
-    elif toPrint.lower() in IDtoName:
-        print(IDtoName[toPrint.lower])
-    else:
-        print('Not found')
+def Primerica_Div_Model_Pipeline():
+    fitlist = input('Enter FULL PATH of the fit list: ').strip().replace('"', '')
+    fitlist_sheet = input('Enter the name of the fit list sheet within that excel file (case sensitive): ')
+    thisMonth = input('Enter the FULL PATH of the Primerica excel file: ').strip().replace('"', '')
+    thisMonthSheet = input('Enter the name of the sheet on the Primerica file: ')
+    lastMonth = input('Enter the FULL PATH of last month\'s Primerica table\'s excel file: ').strip().replace('"', '')
+    lastMonthSheet = input('Enter the name of the sheet on last month\'s Primerica table\'s file: ')
+    
+    load_reps_from_xlsx(fitlist, fitlist_sheet)
+    Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet)
+
+    
+#AUM_Pivot_Pipeline()
+Primerica_Div_Model_Pipeline()
