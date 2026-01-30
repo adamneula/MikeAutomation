@@ -284,9 +284,7 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
                 pd.read_excel(fit_path, sheet_name=fit_sheet, header=1).to_excel(writer, sheet_name='Source_FIT', index=False)
                 pd.read_excel(details_path, sheet_name=details_sheet).to_excel(writer, sheet_name='Source_Details', index=False)
                 pd.read_excel(pivot_path, sheet_name=pivot_sheet).to_excel(writer, sheet_name='Source_Pivots', index=False)
-                print('should have written tabs')
             except:
-                print('should have excepted from writing tabs')
                 print(f"\nSOURCE TAB ERROR: {e}")
 
         print(f"\nSUCCESS: Report generated at {output_path}")
