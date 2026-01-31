@@ -289,7 +289,7 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
     except Exception as e:
         print(f"\nERROR: {e}")
 
-def rep_lookup(input_str):
+def rep_lookup(input_str) -> Representatives:
     global reps, IDtoName
     
     if not input_str or str(input_str).lower() == 'nan':
@@ -300,7 +300,8 @@ def rep_lookup(input_str):
     
     if not resolved_name_lower:
         resolved_name_lower = IDtoName.get(input_clean.replace(" ", ""))
-
+    if not resolved_name_lower:
+        resolved_name_lower = IDtoName.get(input_clean[:5])
     target_name_lower = resolved_name_lower if resolved_name_lower else input_clean.lower()
 
     parts = target_name_lower.split()
@@ -371,18 +372,47 @@ def apply_excel_highlighting(workbook, worksheet, df):
                 worksheet.write(row_num + 1, mom_change_idx, mom_change_val, neg_fmt)
     
 def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
-    df = pd.read_excel(thisMonth, sheet_name=thisMonthSheet)
-    df.columns = df.columns.str.strip()
+    # --- DIAGNOSTIC 1: Initial Load ---
+    df_raw = pd.read_excel(thisMonth, sheet_name=thisMonthSheet)
+    df_raw.columns = df_raw.columns.str.strip()
+    print(f"DEBUG: Total rows in raw file: {len(df_raw)}")
+
+    # Clean the ModelName data itself (not just the header)
+    df_raw['ModelName'] = df_raw['ModelName'].astype(str).str.strip()
     
-    df = df[df['ModelName'] == 'Genter Capital Dividend Income'].copy()
+    # --- DIAGNOSTIC 2: The Filter ---
+    target_model = 'Genter Capital Dividend Income Model'
+    target_institution = 'Primerica Brokerage Services'
+
+    # Filter for BOTH at once. 
+    # Use .str.contains if the names might have extra spaces
+    df = df_raw[(df_raw['ModelName'] == target_model) & (df_raw['IBD/Sponsor Name'] == target_institution)].copy()
     
+    if len(df) == 0:
+        print("DEBUG: Available models in file were:", df_raw['ModelName'].unique()[:10])
+
+    # --- DIAGNOSTIC 3: The ID Match ---
     df_prev_raw = pd.read_excel(lastMonth, sheet_name=lastMonthSheet)
     df_prev_raw.columns = df_prev_raw.columns.str.strip()
+    
+    # Cast to string to prevent Int vs String mismatch
+    df['accountid'] = df['accountid'].astype(str).str.strip()
+    df_prev_raw['accountid'] = df_prev_raw['accountid'].astype(str).str.strip()
+    
     prev_assets_map = dict(zip(df_prev_raw['accountid'], df_prev_raw['Total Assets']))
+    
+    # Count how many current accounts exist in the previous month's map
+    match_count = df['accountid'].isin(prev_assets_map.keys()).sum()
+    print(f"DEBUG: Out of {len(df)} accounts, {match_count} were found in last month's data.")
+    print(f"DEBUG: {len(df) - match_count} accounts are being treated as 'New Open'.")
+
+    # ... proceed with the rest of your logic ...
     
     rep_name_idx = df.columns.get_loc('Rep Name')
     #V
     df.insert(rep_name_idx + 1, 'Rep ID', df['Rep Name'].apply(lambda x: rep_lookup(x).Primary_Rep_ID if rep_lookup(x) else 'Not Found'))
+    #AD
+    df['Rep Email'] = df['Rep Name'].apply(lambda x: rep_lookup(x).Email if rep_lookup(x) else 'Not Found')
     #AF
     df['Prev Month Assets'] = df['accountid'].map(prev_assets_map).fillna(0)
     #AG
@@ -392,12 +422,13 @@ def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
     #AH
     df['% Change'] = np.where(df['Prev Month Assets'] > 0, df['$ Change'] / df['Prev Month Assets'], 0)
     #AI
-    mode_map = df.groupby('Rep Name')['Total Assets'].apply(lambda x: x.mode().iloc[0] if not x.mode().empty else 0)
-    df['Mode.Sngl'] = df['Rep Name'].map(mode_map)
+    mode_series = df.loc[df['Prev Month Assets'] > 0, '% Change'].round(4).mode()
+    market_benchmark = mode_series.iloc[0] if not mode_series.empty else 0
+    df['Mode.Sngl'] = market_benchmark
     #AJ
-    df['Flow'] = 'To be figured out'
+    df['Flow'] = df['$ Change'] - (df['Prev Month Assets'] * df['Mode.Sngl'])
     #AK
-    df['Status'] = np.where(df['Prev Month Assets'] > 0, 'Addition', 'New Open')
+    df['Status'] = np.where(df['Flow'] < 10000, '', np.where(df['Prev Month Assets'] > 0, 'Addition', 'Open'))
     #AL
     df['True State'] = df['Rep Name'].apply(lambda x: rep_lookup(x).True_State if rep_lookup(x) else '')
     #AM
@@ -405,7 +436,7 @@ def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
     #AN
     df['Territory'] = df['Rep Name'].apply(lambda x: rep_lookup(x).Territory if rep_lookup(x) else '')
     
-    output_file = "Dividend_Income_Detailed_Report.xlsx"
+    output_file = "Primerica_Div_Model.xlsx"
     with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
         sheet_name="Primerica Div Model"
         df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -413,9 +444,25 @@ def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
         workbook = writer.book
         worksheet = writer.sheets[sheet_name]
         
+        worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+        worksheet.freeze_panes(1, 0)
+        
         money_fmt = workbook.add_format({'num_format': '$#,##0.00'})
+        percent_fmt = workbook.add_format({'num_format': '0.00%'})
         worksheet.set_column('AF:AG', 18, money_fmt)
         worksheet.set_column('AH:AH', 12, workbook.add_format({'num_format': '0.0%'}))
+        for i, col in enumerate(df.columns):
+            # Calculate max width of data in this column
+            max_len = max(df[col].fillna('').astype(str).map(len).max(), len(str(col))) + 2
+            max_len = min(max_len, 50) # Cap at 50
+            
+            # Apply formatting based on column name
+            if col in ['$ Change', 'Total Assets', 'Prev Month Assets', 'Flow', 'Total Assets - Ex. Cash', 'Total Cash']:
+                worksheet.set_column(i, i, 18, money_fmt)
+            elif col in ['% Change', 'Mode.Sngl']:
+                worksheet.set_column(i, i, 12, percent_fmt)
+            else:
+                worksheet.set_column(i, i, max_len)
     print(f"SUCCESS: Detailed report saved to {os.path.abspath(output_file)}")
         
 def AUM_Pivot_Pipeline():
