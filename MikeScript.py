@@ -436,34 +436,85 @@ def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
     #AN
     df['Territory'] = df['Rep Name'].apply(lambda x: rep_lookup(x).Territory if rep_lookup(x) else '')
     
-    output_file = "Primerica_Div_Model.xlsx"
+    output_file = "Primerica_Div_Model_Highlighted.xlsx"
     with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
-        sheet_name="Primerica Div Model"
+        sheet_name = "Primerica Div Model"
         df.to_excel(writer, sheet_name=sheet_name, index=False)
         
         workbook = writer.book
         worksheet = writer.sheets[sheet_name]
         
-        worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
-        worksheet.freeze_panes(1, 0)
+        # --- Define Formats ---
+        yellow_bg = workbook.add_format({'bg_color': '#FFFF00', 'border': 1})
+        orange_bg = workbook.add_format({'bg_color': '#FFC000', 'border': 1})
         
+        # Money/Percent with Yellow/Orange overrides
         money_fmt = workbook.add_format({'num_format': '$#,##0.00'})
         percent_fmt = workbook.add_format({'num_format': '0.00%'})
-        worksheet.set_column('AF:AG', 18, money_fmt)
-        worksheet.set_column('AH:AH', 12, workbook.add_format({'num_format': '0.0%'}))
+        money_yellow = workbook.add_format({'num_format': '$#,##0.00', 'bg_color': '#FFFF00', 'border': 1})
+        
+        # Status/Territory Formats
+        green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
+        purple_fmt = workbook.add_format({'bg_color': '#E1D5E7', 'font_color': '#400080'})
+
+        # --- 1. Basic Setup ---
+        worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+        worksheet.freeze_panes(1, 0)
+
+        # --- 2. Static Column Highlights (M, P, V, AA, AB, AJ, AL in Yellow | W in Orange) ---
+        # Map Excel letters to 0-based indices for the loop
+        yellow_cols = ['M', 'P', 'V', 'AA', 'AB', 'AJ', 'AL']
+        orange_cols = ['W']
+        
+        def col_to_idx(col_letter):
+            # Converts 'A' -> 0, 'B' -> 1, etc.
+            num = 0
+            for c in col_letter:
+                num = num * 26 + (ord(c.upper()) - ord('A') + 1)
+            return num - 1
+
+        yellow_indices = [col_to_idx(c) for c in yellow_cols]
+        orange_indices = [col_to_idx(c) for c in orange_cols]
+
+        # --- 3. The Main Formatting Loop ---
         for i, col in enumerate(df.columns):
-            # Calculate max width of data in this column
             max_len = max(df[col].fillna('').astype(str).map(len).max(), len(str(col))) + 2
-            max_len = min(max_len, 50) # Cap at 50
+            max_len = min(max_len, 50)
             
-            # Apply formatting based on column name
-            if col in ['$ Change', 'Total Assets', 'Prev Month Assets', 'Flow', 'Total Assets - Ex. Cash', 'Total Cash']:
-                worksheet.set_column(i, i, 18, money_fmt)
-            elif col in ['% Change', 'Mode.Sngl']:
-                worksheet.set_column(i, i, 12, percent_fmt)
-            else:
-                worksheet.set_column(i, i, max_len)
-    print(f"SUCCESS: Detailed report saved to {os.path.abspath(output_file)}")
+            # Determine Base Format
+            fmt = None
+            if i in yellow_indices:
+                fmt = money_yellow if any(x in col for x in ['Assets', 'Change', 'Flow']) else yellow_bg
+            elif i in orange_indices:
+                fmt = orange_bg
+            elif any(x in col for x in ['$ Change', 'Assets', 'Flow']):
+                fmt = money_fmt
+            elif any(x in col for x in ['% Change', 'Mode.Sngl']):
+                fmt = percent_fmt
+            
+            worksheet.set_column(i, i, max_len, fmt)
+
+        # --- 4. Conditional Formatting (Status & Territory) ---
+        last_row = len(df)
+        status_idx = df.columns.get_loc('Status')
+        ae_idx = df.columns.get_loc('AE')
+        terr_idx = df.columns.get_loc('Territory')
+
+        # Status: Open (Green) & Addition (Purple)
+        worksheet.conditional_format(1, status_idx, last_row, status_idx, 
+                                     {'type': 'cell', 'criteria': 'equal to', 'value': '"Open"', 'format': green_fmt})
+        worksheet.conditional_format(1, status_idx, last_row, status_idx, 
+                                     {'type': 'cell', 'criteria': 'equal to', 'value': '"Addition"', 'format': purple_fmt})
+
+        # Territory: West (Purple) & East (Green)
+        # We apply this to both the AE and Territory columns
+        for idx in [ae_idx, terr_idx]:
+            worksheet.conditional_format(1, idx, last_row, idx, 
+                                         {'type': 'formula', 'criteria': f'=$AN2="West"', 'format': purple_fmt})
+            worksheet.conditional_format(1, idx, last_row, idx, 
+                                         {'type': 'formula', 'criteria': f'=$AN2="East"', 'format': green_fmt})
+
+    print(f"SUCCESS: Detailed report with color-coding saved to {os.path.abspath(output_file)}")
         
 def AUM_Pivot_Pipeline():
     fitlist = input('Enter FULL PATH of the fit list: ').strip().replace('"', '')
@@ -492,5 +543,5 @@ def Primerica_Div_Model_Pipeline():
     Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet)
 
     
-#AUM_Pivot_Pipeline()
-Primerica_Div_Model_Pipeline()
+AUM_Pivot_Pipeline()
+#Primerica_Div_Model_Pipeline()
