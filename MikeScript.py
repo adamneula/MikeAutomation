@@ -151,9 +151,8 @@ def load_previous_month_data(filename, sheetname):
     # base_dir = os.path.dirname(os.path.abspath(__file__))
     # file_path = os.path.join(base_dir, filename)
     
-    # Load the previous month's pivot (assuming headers on row 2 as in your validation)
     try:
-        df_prev = pd.read_excel(filename, sheet_name=sheetname, header=2)
+        df_prev = pd.read_excel(filename, sheet_name=sheetname, header=0)
         df_prev.columns = df_prev.columns.str.strip()
     except Exception as e:
         print(f"Error loading {filename}: {e}")
@@ -283,6 +282,63 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
                 pd.read_excel(pivot_path, sheet_name=pivot_sheet).to_excel(writer, sheet_name='Source_Pivots', index=False)
             except:
                 print(f"\nSOURCE TAB ERROR: {e}")
+            
+                            
+    #PRINT LEGEND HERE
+
+            legend_start_row = 1
+            legend_col_label = 20 # Column U
+            legend_col_val = 21   # Column V
+            
+            worksheet.write(0, legend_col_label, "Ranking Legend (minimum):", workbook.add_format({'bold': True}))
+            
+            legend_items = [
+                ('', '', '#FFFFFF'),
+                ('AAA', 10000000, '#00B050'), # Green
+                ('AA', 5000000, '#92D050'),   # Light Green
+                ('A', 2000000, '#FCE4D6'),    # Peach/Tan
+                ('BB', 1000000, '#00B0F0'),   # Blue
+                ('B', 250000, '#B4C6E7'),     # Light Blue
+                ('C', 0, '#FFFF00'),          # Yellow
+            ]
+
+            for i, (rank, val, color) in enumerate(legend_items):
+                row = legend_start_row + i
+                fmt = workbook.add_format({'bg_color': color, 'border': 1})
+                money_fmt_legend = workbook.add_format({'bg_color': color, 'border': 1, 'num_format': '$#,##0.00'})
+                
+                worksheet.write(row, legend_col_label, rank, fmt)
+                worksheet.write(row, legend_col_val, val, money_fmt_legend)
+
+            # 2. Add the Summary Totals (Total Assets, East, West, etc.)
+            summary_start_row = legend_start_row + len(legend_items) + 1
+            bold_border = workbook.add_format({'bold': True, 'border': 1})
+            money_bold = workbook.add_format({'bold': True, 'border': 1, 'num_format': '$#,##0.00'})
+            percent_bold = workbook.add_format({'bold': True, 'border': 1, 'num_format': '0.00%'})
+
+            # Calculations for the summary
+            total_assets = df_output['Sum of Total Assets '].sum()
+            east_assets = df_output[df_output['Territory'] == 'East']['Sum of Total Assets '].sum()
+            west_assets = df_output[df_output['Territory'] == 'West']['Sum of Total Assets '].sum()
+            prev_aum = df_output['Previous Month AUM'].sum()
+            mom_growth = (total_assets - prev_aum) / prev_aum if prev_aum > 0 else 0
+
+            summary_data = [
+                (f"Total Assets {datetime.now().strftime('%m/%d/%Y')}:", total_assets, money_bold),
+                ("East", east_assets, money_bold),
+                ("West", west_assets, money_bold),
+                ("", None, None), # Spacer
+                ("Dec 2025 AUM", prev_aum, money_bold),
+                ("", None, None), # Spacer
+                ("MoM Growth", mom_growth, percent_bold)
+            ]
+
+            for i, (label, value, fmt) in enumerate(summary_data):
+                curr_row = summary_start_row + i
+                if label:
+                    worksheet.write(curr_row, legend_col_label, label, bold_border)
+                if value is not None:
+                    worksheet.write(curr_row, legend_col_val, value, fmt)
 
         print(f"\nSUCCESS: Report generated at {output_path}")
     
@@ -436,7 +492,7 @@ def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
     #AN
     df['Territory'] = df['Rep Name'].apply(lambda x: rep_lookup(x).Territory if rep_lookup(x) else '')
     
-    output_file = "Primerica_Div_Model_Highlighted.xlsx"
+    output_file = "ModelProvider_AUM_RNC_JAN2026 - New and Additions.xlsx"
     with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
         sheet_name = "Primerica Div Model"
         df.to_excel(writer, sheet_name=sheet_name, index=False)
