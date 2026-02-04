@@ -1,7 +1,8 @@
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
+from dateutil.relativedelta import relativedelta
 
 # First edit on corp machine
 # Global dictionary to store objects
@@ -220,9 +221,9 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
 
     try:
         with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-            df_output.to_excel(writer, sheet_name=f'AUM Pivot - {datetime.now().strftime("%b %y")}', index=False)
+            df_output.to_excel(writer, sheet_name=f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}', index=False)
             workbook  = writer.book
-            worksheet = writer.sheets[f'AUM Pivot - {datetime.now().strftime("%b %y")}']
+            worksheet = writer.sheets[f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}']
 
             # --- Define Styles ---
             dark_blue = workbook.add_format({'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 1, 'align': 'center'})
@@ -324,12 +325,12 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
             mom_growth = (total_assets - prev_aum) / prev_aum if prev_aum > 0 else 0
 
             summary_data = [
-                (f"Total Assets {datetime.now().strftime('%m/%d/%Y')}:", total_assets, money_bold),
+                (f"Total Assets {(datetime.now().replace(day=1) - timedelta(days=1)).strftime('%m/%d/%Y')}:", total_assets, money_bold),
                 ("East", east_assets, money_bold),
                 ("West", west_assets, money_bold),
-                ("", None, None), # Spacer
-                ("Dec 2025 AUM", prev_aum, money_bold),
-                ("", None, None), # Spacer
+                ("", None, None),
+                (f"{(datetime.now() - relativedelta(months=2)).strftime('%b %y')} AUM", prev_aum, money_bold),
+                ("", None, None),
                 ("MoM Growth", mom_growth, percent_bold)
             ]
 
