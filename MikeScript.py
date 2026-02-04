@@ -3,9 +3,10 @@ import os
 from datetime import datetime, timedelta
 import numpy as np
 from dateutil.relativedelta import relativedelta
+from tqdm import tqdm
 
-# First edit on corp machine
-# Global dictionary to store objects
+tqdm.pandas()
+
 reps = {}
 IDtoName = {}
 States = {
@@ -49,11 +50,6 @@ class Representatives():
 def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
     global reps
     
-    # Setup pathing
-    #base_dir = os.path.dirname(os.path.abspath(__file__))
-    #sheet_name = input('Enter sheet name (it should be stored in the same directory as this script. Give the name and filetype, such as 12-25.xlsx): ')
-    #file_path = os.path.join(base_dir, Fit_List_Dir)
-    
     # header=1 skips the 'Owned...' row and uses the 'Code, Mutual...' row as headers
     df = pd.read_excel(Fit_List_Dir, sheet_name=Fit_List_Sheet_Name, header=1)
     
@@ -93,9 +89,7 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
             
 def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
     global reps
-    
-    # base_dir = os.path.dirname(os.path.abspath(__file__))
-    # file_path = os.path.join(base_dir, Primerica_Dir)
+
     df = pd.read_excel(Primerica_Dir, sheet_name=Primerica_Sheet_Name, header=0)
     df.columns = df.columns.str.strip()
     
@@ -117,8 +111,6 @@ def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
         else:
             NamesNotFound[clean_Name] = index
     
-def assign_ranking():
-    global reps
     for rep in reps:
         #assign ranking
         if reps[rep].Sum_of_Total_Assets == 0: continue
@@ -128,35 +120,13 @@ def assign_ranking():
         elif reps[rep].Sum_of_Total_Assets < 5000000: reps[rep].Ranking = 'A'
         elif reps[rep].Sum_of_Total_Assets < 10000000: reps[rep].Ranking = 'AA'
         else: reps[rep].Ranking = 'AAA'
-        
-def validation():
-    global reps
     
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    #sheet_name = input('Enter sheet name (it should be stored in the same directory as this script. Give the name and filetype, such as 12-25.xlsx): ')
-    file_path = os.path.join(base_dir, 'ModelProvider_AUM_RNC_DEC2025_Pivot.xlsx')
-    df = pd.read_excel(file_path, sheet_name='AUM Pivot - Dec 25', header=2)
-    df.columns = df.columns.str.strip()
-    
-    missing_count = 0
-    for _, row in df.iterrows():
-        clean_name = ' '.join(str(row['Advisor Name']).split()).lower()
-        if clean_name == 'nan': continue
-        if clean_name not in reps:
-            missing_count += 1
-            print(f'missed {row["Advisor Name"]} from my dataset (miss {missing_count})')
-
-def load_previous_month_data(filename, sheetname):
-    global reps, IDtoName
-    
-    # base_dir = os.path.dirname(os.path.abspath(__file__))
-    # file_path = os.path.join(base_dir, filename)
-    
+def load_previous_month_data(prev_month_file, prev_month_sheet):
     try:
-        df_prev = pd.read_excel(filename, sheet_name=sheetname, header=0)
+        df_prev = pd.read_excel(prev_month_file, sheet_name=prev_month_sheet, header=0)
         df_prev.columns = df_prev.columns.str.strip()
     except Exception as e:
-        print(f"Error loading {filename}: {e}")
+        print(f"Error loading {prev_month_file}: {e}")
         return
 
     for _, row in df_prev.iterrows():
@@ -182,7 +152,7 @@ def load_previous_month_data(filename, sheetname):
             else:
                 advisor.MoM_Change = 0.0
                            
-def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='', details_sheet='', pivot_path='', pivot_sheet=''):
+def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet='', pivot_path='', pivot_sheet=''):
     global reps
     
     # 1. Prepare Data
@@ -217,8 +187,10 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
 
     df_output = pd.DataFrame(data).rename(columns={'Spacer_1': '', 'Spacer_2': ' '})
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    output_path = os.path.join(base_dir, output_filename)
-
+    clean_name = os.path.splitext(os.path.basename(details_path))[0]
+    raw_filename = f'{clean_name}_Pivot.xlsx'
+    output_path = get_unique_filename(os.path.join(base_dir, raw_filename))
+    
     try:
         with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
             df_output.to_excel(writer, sheet_name=f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}', index=False)
@@ -345,35 +317,6 @@ def export_to_pivot(output_filename, fit_path='', fit_sheet='', details_path='',
     
     except Exception as e:
         print(f"\nERROR: {e}")
-
-def rep_lookup(input_str) -> Representatives:
-    global reps, IDtoName
-    
-    if not input_str or str(input_str).lower() == 'nan':
-        return None
-
-    input_clean = str(input_str).strip().upper()
-    resolved_name_lower = IDtoName.get(input_clean)
-    
-    if not resolved_name_lower:
-        resolved_name_lower = IDtoName.get(input_clean.replace(" ", ""))
-    if not resolved_name_lower:
-        resolved_name_lower = IDtoName.get(input_clean[:5])
-    target_name_lower = resolved_name_lower if resolved_name_lower else input_clean.lower()
-
-    parts = target_name_lower.split()
-    if parts:
-        first = parts[0]
-        last = " ".join(parts[1:])
-        
-        if first == 'christophe':
-            target_name_lower = " ".join(['christopher', last])
-        elif first == 'danny' and last == 'creswell':
-            target_name_lower = 'daniel creswell'
-        elif first == 'theodore' and last == 'lund':
-            target_name_lower = 'ted lund'
-
-    return reps.get(target_name_lower)
     
 def apply_excel_highlighting(workbook, worksheet, df):
     # 1. Define the Ranking Legend Hex Codes
@@ -493,8 +436,12 @@ def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
     #AN
     df['Territory'] = df['Rep Name'].apply(lambda x: rep_lookup(x).Territory if rep_lookup(x) else '')
     
-    output_file = "ModelProvider_AUM_RNC_JAN2026 - New and Additions.xlsx"
-    with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    clean_name = os.path.splitext(os.path.basename(thisMonth))[0]
+    raw_filename = f'{clean_name} - New and Additions.xlsx'
+    output_path = get_unique_filename(os.path.join(base_dir, raw_filename))
+    
+    with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
         sheet_name = "Primerica Div Model"
         df.to_excel(writer, sheet_name=sheet_name, index=False)
         
@@ -571,34 +518,99 @@ def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
             worksheet.conditional_format(1, idx, last_row, idx, 
                                          {'type': 'formula', 'criteria': f'=$AN2="East"', 'format': green_fmt})
 
-    print(f"SUCCESS: Detailed report with color-coding saved to {os.path.abspath(output_file)}")
+    print(f"SUCCESS: Detailed report with color-coding saved to {os.path.abspath(output_path)}")
+
+#HELPER FUNCTIONS
+def get_unique_filename(file_path):
+    """Checks if a file exists and appends a numeric suffix if it does."""
+    if not os.path.exists(file_path):
+        return file_path
+
+    # Split into file path/name and the .xlsx extension
+    base, extension = os.path.splitext(file_path)
+    counter = 1
+    
+    # Try 'FileName 1.xlsx', 'FileName 2.xlsx', etc.
+    new_path = f"{base} {counter}{extension}"
+    while os.path.exists(new_path):
+        counter += 1
+        new_path = f"{base} {counter}{extension}"
         
-def AUM_Pivot_Pipeline():
-    fitlist = input('Enter FULL PATH of the fit list: ').strip().replace('"', '')
-    fitlist_sheet = input('Enter the name of the fit list sheet within that excel file (case sensitive): ')
-    primerica_xlsx = input('Enter FULL PATH of the Primerica excel file: ').strip().replace('"', '')
-    primerica_sheet = input('Enter the name of the Primerica sheet within that excel file (case sensitive): ')
-    prev_table = input("Enter FULL PATH of last month's pivot excel file: ").strip().replace('"', '')
-    prev_sheet = input('Enter the name of the pivot table sheet on that excel file (case sensitive): ')
-    to_make = input('Enter name for the new file (include file extension): ').strip().replace('"', '')
+    return new_path
 
-    load_reps_from_xlsx(fitlist, fitlist_sheet)
-    attribute_accounts(primerica_xlsx, primerica_sheet)
-    assign_ranking()
-    load_previous_month_data(prev_table, prev_sheet)
-    export_to_pivot(to_make, fitlist, fitlist_sheet, primerica_xlsx, primerica_sheet, prev_table, prev_sheet)
-
-def Primerica_Div_Model_Pipeline():
-    fitlist = input('Enter FULL PATH of the fit list: ').strip().replace('"', '')
-    fitlist_sheet = input('Enter the name of the fit list sheet within that excel file (case sensitive): ')
-    thisMonth = input('Enter the FULL PATH of the Primerica excel file: ').strip().replace('"', '')
-    thisMonthSheet = input('Enter the name of the sheet on the Primerica file: ')
-    lastMonth = input('Enter the FULL PATH of last month\'s Primerica table\'s excel file: ').strip().replace('"', '')
-    lastMonthSheet = input('Enter the name of the sheet on last month\'s Primerica table\'s file: ')
+def rep_lookup(input_str) -> Representatives:
+    global reps, IDtoName
     
-    load_reps_from_xlsx(fitlist, fitlist_sheet)
-    Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet)
+    if not input_str or str(input_str).lower() == 'nan':
+        return None
 
+    input_clean = str(input_str).strip().upper()
+    resolved_name_lower = IDtoName.get(input_clean)
     
-AUM_Pivot_Pipeline()
-#Primerica_Div_Model_Pipeline()
+    if not resolved_name_lower:
+        resolved_name_lower = IDtoName.get(input_clean.replace(" ", ""))
+    if not resolved_name_lower:
+        resolved_name_lower = IDtoName.get(input_clean[:5])
+    target_name_lower = resolved_name_lower if resolved_name_lower else input_clean.lower()
+
+    parts = target_name_lower.split()
+    if parts:
+        first = parts[0]
+        last = " ".join(parts[1:])
+        
+        if first == 'christophe':
+            target_name_lower = " ".join(['christopher', last])
+        elif first == 'danny' and last == 'creswell':
+            target_name_lower = 'daniel creswell'
+        elif first == 'theodore' and last == 'lund':
+            target_name_lower = 'ted lund'
+
+    return reps.get(target_name_lower)
+
+def main():
+    while True:
+        print("\n" + "="*40)
+        print("      GENTER CAPITAL AUTOMATION")
+        print("="*40)
+        print("1. Generate Primerica AUM Pivot Table")
+        print("2. Run Primerica Div Model Pipeline (additions + opens)")
+        print("3. Run Both Pipelines")
+        print("Q. Quit")
+        print("-" * 40)
+        
+        choice = input("Select an option: ").strip().upper()
+        fitlist = input('Enter FULL PATH of the fit list (<MONTH>-<YEAR): ').strip().replace('"', '')
+        fitlist_sheet = input('Enter the name of the fit list sheet within that excel file (FIT): ')
+        thisMonth = input('Enter FULL PATH of the Primerica excel file (ModelProvider_AUM_RNC_<MONTH><YEAR>.xlsx): ').strip().replace('"', '')
+        thisMonthSheet = input('Enter the name of the Primerica sheet within that excel file (Account-Rep Details): ')
+        lastMonth = input("Enter FULL PATH of last month's pivot table excel file (ModelProvider_AUM_RNC_<MONTH><YEAR>_Pivot.xlsx): ").strip().replace('"', '')
+        
+        if choice == '1':
+            lastMonthTableSheet = input('Enter the name of the pivot table sheet on that excel file (AUM Pivot - <month> <year>): ')
+
+            load_reps_from_xlsx(fitlist, fitlist_sheet)
+            attribute_accounts(thisMonth, thisMonthSheet)
+            load_previous_month_data(lastMonth, lastMonthTableSheet)
+            export_to_pivot(fitlist, fitlist_sheet, thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
+        elif choice == '2':
+            lastMonthAccountSheet = input("Enter the name of the sheet on last month's Primerica table's file (Account-Rep Details): ")
+            
+            load_reps_from_xlsx(fitlist, fitlist_sheet)
+            Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+        elif choice == '3':
+            lastMonthTableSheet = input('Enter the name of the pivot table sheet on that excel file (AUM Pivot - <month> <year>): ')
+            lastMonthAccountSheet = input("Enter the name of the sheet on last month's Primerica table's file (Account-Rep Details): ")
+            
+            load_reps_from_xlsx(fitlist, fitlist_sheet)
+            attribute_accounts(thisMonth, thisMonthSheet)
+            load_previous_month_data(lastMonth, lastMonthTableSheet)
+            export_to_pivot(fitlist, fitlist_sheet, thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
+            Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+        elif choice == 'Q':
+            print("Closing application. Have a good one!")
+            break
+        else:
+            print("Invalid selection. Please enter 1, 2, 3, or Q.")
+
+if __name__ == "__main__":
+    main()  
