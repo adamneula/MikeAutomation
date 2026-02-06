@@ -7,6 +7,9 @@ from tqdm import tqdm
 
 tqdm.pandas()
 
+eastBalance = 0
+westBalance = 0
+
 reps = {}
 IDtoName = {}
 States = {
@@ -88,9 +91,9 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
         reps[full_name.lower()] = Representatives(full_name, clean_ID, state, email, AE, territory, total)
             
 def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
-    global reps
+    global reps, eastBalance, westBalance
 
-    df = pd.read_excel(Primerica_Dir, sheet_name=Primerica_Sheet_Name, header=0)
+    df = load_dynamic_df(Primerica_Dir, Primerica_Sheet_Name, 'Rep Name')
     df.columns = df.columns.str.strip()
     
     for index, row in df.iterrows():
@@ -102,15 +105,21 @@ def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
         
         if clean_Name.lower() in reps:
             reps[clean_Name.lower()].add_account(row['Total Assets'])
+            if reps[clean_Name.lower()].Territory == 'East': eastBalance += row['Total Assets']
+            else: westBalance += row['Total Assets']
         elif clean_Name[:5] in IDtoName:
             reps[IDtoName[clean_Name[:5]]].add_account(row['Total Assets'])
+            if reps[IDtoName[clean_Name[:5]]].Territory == 'East': eastBalance += row['Total Assets']
+            else: westBalance += row['Total Assets']
 
         elif clean_Name.replace(' ', '') in IDtoName:
             reps[IDtoName[clean_Name.replace(' ', '')]].add_account(row['Total Assets'])
+            if reps[IDtoName[clean_Name.replace(' ', '')]].Territory == 'East': eastBalance += row['Total Assets']
+            else: westBalance += row['Total Assets']
 
         else:
             NamesNotFound[clean_Name] = index
-    
+
     for rep in reps:
         #assign ranking
         if reps[rep].Sum_of_Total_Assets == 0: continue
@@ -123,7 +132,7 @@ def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
     
 def load_previous_month_data(prev_month_file, prev_month_sheet):
     try:
-        df_prev = pd.read_excel(prev_month_file, sheet_name=prev_month_sheet, header=0)
+        df_prev = load_dynamic_df(prev_month_file, prev_month_sheet, 'Primary Rep ID')
         df_prev.columns = df_prev.columns.str.strip()
     except Exception as e:
         print(f"Error loading {prev_month_file}: {e}")
@@ -153,9 +162,7 @@ def load_previous_month_data(prev_month_file, prev_month_sheet):
                 advisor.MoM_Change = 0.0
                            
 def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet='', pivot_path='', pivot_sheet=''):
-    global reps
-    
-    # 1. Prepare Data
+    global reps, eastBalance, westBalance
     data = []
     sorted_reps = sorted(reps.values(), key=lambda x: x.Advisor_Name)
     
@@ -204,18 +211,14 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             percent_fmt = workbook.add_format({'num_format': '0.0%', 'border': 1})
             border_fmt = workbook.add_format({'border': 1})
             
-            # Ranking Legend Hex Codes (Updated with your swatch codes)
             rank_colors = {
                 'AAA': '#00B050', 'AA': '#92D050', 'A': '#E2F0D9',
                 'BB': '#00B0F0', 'B': '#B4C6E7', 'C': '#FFFF00'
             }
 
-            # --- Apply Formatting ---
-            # 1. Header Styling & Active Sort Buttons
-            # We explicitly set the autofilter across all columns (0 to end)
             num_rows = len(df_output)
             num_cols = len(df_output.columns)
-            #This puts the sorting box on the appropriate columns
+            
             worksheet.autofilter(0, 0, num_rows, 1)
             worksheet.autofilter(0, 8, num_rows, 18)
 
@@ -227,20 +230,17 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                 else: # Spacers G and H
                     worksheet.write(0, col_num, "", border_fmt)
 
-            # 2. Column-Specific Formatting (Widths & Ranking Colors)
             apply_excel_highlighting(workbook, worksheet, df_output)
             for i, col in enumerate(df_output.columns):
-                # This safely calculates length even if there are floats/NaNs
-                # We convert every item to a string, find its length, and take the max
-                column_data = df_output[col].fillna('') # Fill NaNs with empty strings first
+
+                column_data = df_output[col].fillna('')
                 max_len = max(
                     column_data.astype(str).map(len).max(), 
                     len(str(col))
                 ) + 2
                 
-                max_len = min(max_len, 50) # Keep it reasonable
+                max_len = min(max_len, 50) 
                 
-                # Apply column specific formatting
                 if any(x.lower() in col.lower() for x in ['assets', 'aum', 'dollar']):
                     worksheet.set_column(i, i, 21, money_fmt)
                 elif 'Change' in col:
@@ -248,16 +248,12 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                 else:
                     worksheet.set_column(i, i, max_len, border_fmt)
 
-            # --- Final Source Tabs ---
             try:
                 pd.read_excel(fit_path, sheet_name=fit_sheet, header=1).to_excel(writer, sheet_name='Source_FIT', index=False)
                 pd.read_excel(details_path, sheet_name=details_sheet).to_excel(writer, sheet_name='Source_Details', index=False)
                 pd.read_excel(pivot_path, sheet_name=pivot_sheet).to_excel(writer, sheet_name='Source_Pivots', index=False)
             except:
                 print(f"\nSOURCE TAB ERROR: {e}")
-            
-                            
-    #PRINT LEGEND HERE
 
             legend_start_row = 1
             legend_col_label = 20 # Column U
@@ -290,16 +286,37 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             percent_bold = workbook.add_format({'bold': True, 'border': 1, 'num_format': '0.00%'})
 
             # Calculations for the summary
-            total_assets = df_output['Sum of Total Assets '].sum()
-            east_assets = df_output[df_output['Territory'] == 'East']['Sum of Total Assets '].sum()
-            west_assets = df_output[df_output['Territory'] == 'West']['Sum of Total Assets '].sum()
-            prev_aum = df_output['Previous Month AUM'].sum()
-            mom_growth = (total_assets - prev_aum) / prev_aum if prev_aum > 0 else 0
+            # --- Pull Previous Month Total from hardcoded cell W16 ---
+            prev_aum = "" 
+            try:
+                # Read the previous pivot sheet
+                df_prev_grid = pd.read_excel(pivot_path, sheet_name=pivot_sheet, header=None)
+                
+                # Excel 'W16' corresponds to row index 15, column index 22 (0-indexed)
+                # pandas uses [row, col] format
+                val = df_prev_grid.iloc[11, 22] 
+                
+                if pd.notna(val) and isinstance(val, (int, float)):
+                    prev_aum = float(val)
+                else:
+                    print(f"\n[!] WARNING: Cell W16 in '{pivot_sheet}' is empty or not a number.")
+                    print("    Please manually check last month's pivot table.")
 
+            except Exception:
+                print(f"\n[!] WARNING: Could not access cell W16 in {os.path.basename(pivot_path)}.")
+                print("    THE PREVIOUS AUM AND MOM GROWTH FIELDS WILL BE BLANK.")
+                print("    Please manually copy these values from last month's pivot table.")
+
+            # Ensure MoM Growth only calculates if we have a valid number
+            if isinstance(prev_aum, (int, float)) and prev_aum != 0:
+                mom_growth = ((eastBalance + westBalance) - prev_aum) / prev_aum
+            else:
+                mom_growth = ""
+                
             summary_data = [
-                (f"Total Assets {(datetime.now().replace(day=1) - timedelta(days=1)).strftime('%m/%d/%Y')}:", total_assets, money_bold),
-                ("East", east_assets, money_bold),
-                ("West", west_assets, money_bold),
+                (f"Total Assets {(datetime.now().replace(day=1) - timedelta(days=1)).strftime('%m/%d/%Y')}:", eastBalance + westBalance, money_bold),
+                ("East", eastBalance, money_bold),
+                ("West", westBalance, money_bold),
                 ("", None, None),
                 (f"{(datetime.now() - relativedelta(months=2)).strftime('%b %y')} AUM", prev_aum, money_bold),
                 ("", None, None),
@@ -462,7 +479,7 @@ def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
         purple_fmt = workbook.add_format({'bg_color': '#E1D5E7', 'font_color': '#400080'})
 
         # --- 1. Basic Setup ---
-        worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+        worksheet.autofilter(2, 0, 2 + len(df), len(df.columns) - 1)
         worksheet.freeze_panes(1, 0)
 
         # --- 2. Static Column Highlights (M, P, V, AA, AB, AJ, AL in Yellow | W in Orange) ---
@@ -567,6 +584,18 @@ def rep_lookup(input_str) -> Representatives:
 
     return reps.get(target_name_lower)
 
+def load_dynamic_df(path, sheet, target_col, max_search=10):
+    """Searches for the header row within the first max_search rows."""
+    for i in range(max_search + 1):
+        try:
+            df = pd.read_excel(path, sheet_name=sheet, header=i)
+            df.columns = df.columns.str.strip()
+            if target_col in df.columns:
+                return df
+        except Exception:
+            continue
+    raise KeyError(f"Could not find header with column '{target_col}' in the first {max_search} rows of {path}")
+
 def main():
     while True:
         print("\n" + "="*40)
@@ -579,6 +608,11 @@ def main():
         print("-" * 40)
         
         choice = input("Select an option: ").strip().upper()
+        
+        if choice == 'Q':
+            print("Closing application. Have a good one!")
+            break
+        
         fitlist = input('Enter FULL PATH of the fit list (<MONTH>-<YEAR): ').strip().replace('"', '')
         fitlist_sheet = input('Enter the name of the fit list sheet within that excel file (FIT): ')
         thisMonth = input('Enter FULL PATH of the Primerica excel file (ModelProvider_AUM_RNC_<MONTH><YEAR>.xlsx): ').strip().replace('"', '')
@@ -606,9 +640,6 @@ def main():
             load_previous_month_data(lastMonth, lastMonthTableSheet)
             export_to_pivot(fitlist, fitlist_sheet, thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
             Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
-        elif choice == 'Q':
-            print("Closing application. Have a good one!")
-            break
         else:
             print("Invalid selection. Please enter 1, 2, 3, or Q.")
 
