@@ -205,11 +205,14 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             worksheet = writer.sheets[f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}']
 
             # --- Define Styles ---
-            dark_blue = workbook.add_format({'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 1, 'align': 'center'})
-            light_blue = workbook.add_format({'bg_color': "#C7E5F3", 'font_color': 'black', 'bold': True, 'border': 1, 'align': 'center'})
-            money_fmt = workbook.add_format({'num_format': '$#,##0.00', 'border': 1})
-            percent_fmt = workbook.add_format({'num_format': '0.0%', 'border': 1})
-            border_fmt = workbook.add_format({'border': 1})
+            font_settings = {'font_name': 'Aptos Narrow', 'font_size': 11}
+
+            dark_blue = workbook.add_format({**font_settings, 'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 1, 'align': 'center'})
+            light_blue = workbook.add_format({**font_settings, 'bg_color': "#C7E5F3", 'font_color': 'black', 'bold': True, 'border': 1, 'align': 'center'})
+            money_fmt = workbook.add_format({**font_settings, 'num_format': '$#,##0.00', 'border': 1})
+            percent_fmt = workbook.add_format({**font_settings, 'num_format': '0.0%', 'border': 1})
+            border_fmt = workbook.add_format({**font_settings, 'border': 1})
+            bold_border = workbook.add_format({**font_settings, 'bold': True, 'border': 1})
             
             rank_colors = {
                 'AAA': '#00B050', 'AA': '#92D050', 'A': '#E2F0D9',
@@ -256,10 +259,10 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                 print(f"\nSOURCE TAB ERROR: {e}")
 
             legend_start_row = 1
-            legend_col_label = 20 # Column U
-            legend_col_val = 21   # Column V
+            legend_col_label = 21 # Column U
+            legend_col_val = 22   # Column V
             
-            worksheet.write(0, legend_col_label, "Ranking Legend (minimum):", workbook.add_format({'bold': True}))
+            worksheet.write(0, legend_col_label, "Ranking Legend (minimum):", workbook.add_format({'font': 'Aptos Narrow', 'bold': True}))
             
             legend_items = [
                 ('', '', '#FFFFFF'),
@@ -273,17 +276,19 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
 
             for i, (rank, val, color) in enumerate(legend_items):
                 row = legend_start_row + i
-                fmt = workbook.add_format({'bg_color': color, 'border': 1})
-                money_fmt_legend = workbook.add_format({'bg_color': color, 'border': 1, 'num_format': '$#,##0.00'})
+                fmt = workbook.add_format({'font': 'Aptos Narrow', 'bg_color': color, 'border': 1})
+                money_fmt_legend = workbook.add_format({'font': 'Aptos Narrow', 'bg_color': color, 'border': 1, 'num_format': '$#,##0.00'})
                 
                 worksheet.write(row, legend_col_label, rank, fmt)
                 worksheet.write(row, legend_col_val, val, money_fmt_legend)
 
             # 2. Add the Summary Totals (Total Assets, East, West, etc.)
             summary_start_row = legend_start_row + len(legend_items) + 1
-            bold_border = workbook.add_format({'bold': True, 'border': 1})
-            money_bold = workbook.add_format({'bold': True, 'border': 1, 'num_format': '$#,##0.00'})
-            percent_bold = workbook.add_format({'bold': True, 'border': 1, 'num_format': '0.00%'})
+            bold_border = workbook.add_format({'font': 'Aptos Narrow', 'bold': True, 'border': 1})
+            money_bold = workbook.add_format({'font': 'Aptos Narrow', 'bold': True, 'border': 1, 'num_format': '$#,##0.00'})
+            percent_bold = workbook.add_format({'font': 'Aptos Narrow', 'bold': True, 'border': 1, 'num_format': '0.00%'})
+            
+            worksheet.set_column(21, 22, 17)
 
             # Calculations for the summary
             # --- Pull Previous Month Total from hardcoded cell W16 ---
@@ -344,14 +349,17 @@ def apply_excel_highlighting(workbook, worksheet, df):
 
     # 2. Pre-create formats
     # Note: Positive and Negative are independent of the AAA-C ranking
-    pos_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'border': 1, 'num_format': '0.00%', 'align': 'center', 'font_color': '#000000'})
-    neg_fmt = workbook.add_format({'bg_color': '#FFC7CE', 'border': 1, 'num_format': '0.00%', 'align': 'center', 'font_color': '#9C0006'})
-    
+    font_base = {'font_name': 'Aptos Narrow', 'font_size': 11}
+
+    # 2. Pre-create formats with Aptos Narrow
+    pos_fmt = workbook.add_format({**font_base, 'bg_color': '#C6EFCE', 'border': 1, 'num_format': '0.00%', 'align': 'center', 'font_color': '#000000'})
+    neg_fmt = workbook.add_format({**font_base, 'bg_color': '#FFC7CE', 'border': 1, 'num_format': '0.00%', 'align': 'center', 'font_color': '#9C0006'})
+        
     rank_formats = {}
     for rank, hex_code in rank_colors.items():
         rank_formats[rank] = {
-            'text': workbook.add_format({'bg_color': hex_code, 'border': 1, 'align': 'center'}),
-            'money': workbook.add_format({'bg_color': hex_code, 'border': 1, 'num_format': '$#,##0.00'})
+            'text': workbook.add_format({'font_name': 'Aptos Narrow', 'bg_color': hex_code, 'border': 1, 'align': 'center'}),
+            'money': workbook.add_format({'font_name': 'Aptos Narrow', 'bg_color': hex_code, 'border': 1, 'num_format': '$#,##0.00'})
         }
 
     # 3. Identify column indices safely
