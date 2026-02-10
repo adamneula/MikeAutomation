@@ -179,12 +179,12 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             'Sum of Total Assets ': r.Sum_of_Total_Assets,
             'Spacer_1': '', 'Spacer_2': '',
             'Advisor Name': r.Advisor_Name.upper(),
-            'True State.1': r.True_State,
-            'AE.1': r.AE,
-            'Territory.1': r.Territory,
+            'True State ': r.True_State,
+            'AE ': r.AE,
+            'Territory ': r.Territory,
             'Email': r.Email,
-            'Primary Rep ID.1': r.Primary_Rep_ID,
-            'Ranking.1': r.Ranking,
+            'Primary Rep ID ': r.Primary_Rep_ID,
+            'Ranking ': r.Ranking,
             'Sum of Total Assets .1': r.Sum_of_Total_Assets,
             'Previous Month AUM': r.Previous_Month_AUM,
             'MoM Change': r.MoM_Change,
@@ -240,12 +240,9 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             for i, col in enumerate(df_output.columns):
 
                 column_data = df_output[col].fillna('')
-                max_len = max(
-                    column_data.astype(str).map(len).max(), 
-                    len(str(col))
-                ) + 2
+                max_len = max(column_data.astype(str).map(len).max(), len(str(col)))
                 
-                max_len = min(max_len, 50) 
+                max_len = min(max_len, 100) 
                 
                 if any(x.lower() in col.lower() for x in ['assets', 'aum', 'dollar']):
                     worksheet.set_column(i, i, 21, money_fmt)
@@ -254,7 +251,6 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                 else:
                     worksheet.set_column(i, i, max_len, border_fmt)
 
-            worksheet.set_column(8, 14, 15, left_align_fmt) # I through O
             worksheet.set_column(6, 7, 10)
             worksheet.set_column(19, 20, 10)
             try:
@@ -289,11 +285,12 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
 
             # 2. Add the Summary Totals (Total Assets, East, West, etc.)
             summary_start_row = legend_start_row + len(legend_items) + 1
-            bold_border = workbook.add_format({'font': 'Aptos Narrow', 'bold': True, 'border': 1})
-            money_bold = workbook.add_format({'font': 'Aptos Narrow', 'bold': True, 'border': 1, 'num_format': '$#,##0.00'})
-            percent_bold = workbook.add_format({'font': 'Aptos Narrow', 'bold': True, 'border': 1, 'num_format': '0.00%'})
+            bold_border = workbook.add_format({'font': 'Aptos Narrow', 'bold': True, 'border': 0})
+            money_bold = workbook.add_format({'font': 'Aptos Narrow', 'bold': True, 'border': 0, 'num_format': '$#,##0.00'})
+            percent_bold = workbook.add_format({'font': 'Aptos Narrow', 'bold': True, 'border': 0, 'num_format': '0.00%'})
             
-            worksheet.set_column(21, 22, 17)
+            worksheet.set_column(21, 21, 26)
+            worksheet.set_column(22, 22, 17)
 
             # Calculations for the summary
             # --- Pull Previous Month Total from hardcoded cell W16 ---
@@ -357,8 +354,8 @@ def apply_excel_highlighting(workbook, worksheet, df):
     font_base = {'font_name': 'Aptos Narrow', 'font_size': 11}
 
     # 2. Pre-create formats with Aptos Narrow
-    pos_fmt = workbook.add_format({**font_base, 'bg_color': '#C6EFCE', 'border': 1, 'num_format': '0.00%', 'align': 'left', 'font_color': '#000000'})
-    neg_fmt = workbook.add_format({**font_base, 'bg_color': '#FFC7CE', 'border': 1, 'num_format': '0.00%', 'align': 'left', 'font_color': '#9C0006'})
+    pos_fmt = workbook.add_format({**font_base, 'bg_color': '#CEEED0', 'border': 1, 'num_format': '0.00%', 'align': 'right', 'font_color': '#285F17'})
+    neg_fmt = workbook.add_format({**font_base, 'bg_color': '#F6C9CE', 'border': 1, 'num_format': '0.00%', 'align': 'right', 'font_color': '#8F1B15'})
         
     rank_formats = {}
     for rank, hex_code in rank_colors.items():
@@ -369,7 +366,7 @@ def apply_excel_highlighting(workbook, worksheet, df):
 
     # 3. Identify column indices safely
     try:
-        rank_col_idx = df.columns.get_loc('Ranking.1')
+        rank_col_idx = df.columns.get_loc('Ranking ')
         assets_col_idx = df.columns.get_loc('Sum of Total Assets ')
         assets1_col_idx = df.columns.get_loc('Sum of Total Assets .1')
         mom_change_idx = df.columns.get_loc('MoM Change')
@@ -382,7 +379,7 @@ def apply_excel_highlighting(workbook, worksheet, df):
         excel_row = row_num + 3
         
         # --- Handle Ranking and Assets ---
-        rank_val = str(df.iloc[row_num]['Ranking.1']).strip()
+        rank_val = str(df.iloc[row_num]['Ranking ']).strip()
         
         if rank_val in rank_formats:
             # Highlight Ranking
@@ -549,7 +546,7 @@ def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
                                          {'type': 'formula', 'criteria': f'=$AN2="West"', 'format': purple_fmt})
             worksheet.conditional_format(1, idx, last_row, idx, 
                                          {'type': 'formula', 'criteria': f'=$AN2="East"', 'format': green_fmt})
-
+    
     print(f"SUCCESS: Detailed report with color-coding saved to {os.path.abspath(output_path)}")
 
 #HELPER FUNCTIONS
