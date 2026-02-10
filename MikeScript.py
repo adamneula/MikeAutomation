@@ -200,20 +200,22 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
     
     try:
         with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-            df_output.to_excel(writer, sheet_name=f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}', index=False)
+            df_output.to_excel(writer, sheet_name=f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}', index=False, startrow=3, header=False)
             workbook  = writer.book
             worksheet = writer.sheets[f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}']
 
             # --- Define Styles ---
             font_settings = {'font_name': 'Aptos Narrow', 'font_size': 11}
 
-            dark_blue = workbook.add_format({**font_settings, 'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 1, 'align': 'center'})
-            light_blue = workbook.add_format({**font_settings, 'bg_color': "#C7E5F3", 'font_color': 'black', 'bold': True, 'border': 1, 'align': 'center'})
+            dark_blue = workbook.add_format({**font_settings, 'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 1, 'align': 'left'})
+            light_blue = workbook.add_format({**font_settings, 'bg_color': "#C7E5F3", 'font_color': 'black', 'bold': True, 'border': 1, 'align': 'left'})
             money_fmt = workbook.add_format({**font_settings, 'num_format': '$#,##0.00', 'border': 1})
-            percent_fmt = workbook.add_format({**font_settings, 'num_format': '0.0%', 'border': 1})
+            percent_fmt = workbook.add_format({**font_settings, 'num_format': '0.0%', 'border': 1, 'align': 'left'})
             border_fmt = workbook.add_format({**font_settings, 'border': 1})
             bold_border = workbook.add_format({**font_settings, 'bold': True, 'border': 1})
-            
+            left_align_fmt = workbook.add_format({**font_settings, 'font_size': 11, 'align': 'left', 'border': 1})
+            no_border_fmt = workbook.add_format({**font_settings, 'border': 0})
+                        
             rank_colors = {
                 'AAA': '#00B050', 'AA': '#92D050', 'A': '#E2F0D9',
                 'BB': '#00B0F0', 'B': '#B4C6E7', 'C': '#FFFF00'
@@ -222,18 +224,19 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             num_rows = len(df_output)
             num_cols = len(df_output.columns)
             
-            worksheet.autofilter(0, 0, num_rows, 1)
-            worksheet.autofilter(0, 8, num_rows, 18)
+            worksheet.autofilter(2, 0, num_rows + 2, 1)
+            worksheet.autofilter(2, 8, num_rows + 2, 18)
 
             for col_num, value in enumerate(df_output.columns.values):
                 if col_num < 6: # Left side group
-                    worksheet.write(0, col_num, value, light_blue)
+                    worksheet.write(2, col_num, value, light_blue)
                 elif col_num > 7: # Right side group
-                    worksheet.write(0, col_num, value, dark_blue)
+                    worksheet.write(2, col_num, value, dark_blue)
                 else: # Spacers G and H
-                    worksheet.write(0, col_num, "", border_fmt)
+                    worksheet.write(2, col_num, "", no_border_fmt)
 
             apply_excel_highlighting(workbook, worksheet, df_output)
+            
             for i, col in enumerate(df_output.columns):
 
                 column_data = df_output[col].fillna('')
@@ -251,6 +254,9 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                 else:
                     worksheet.set_column(i, i, max_len, border_fmt)
 
+            worksheet.set_column(8, 14, 15, left_align_fmt) # I through O
+            worksheet.set_column(6, 7, 10)
+            worksheet.set_column(19, 20, 10)
             try:
                 pd.read_excel(fit_path, sheet_name=fit_sheet, header=1).to_excel(writer, sheet_name='Source_FIT', index=False)
                 pd.read_excel(details_path, sheet_name=details_sheet).to_excel(writer, sheet_name='Source_Details', index=False)
@@ -258,14 +264,13 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             except:
                 print(f"\nSOURCE TAB ERROR: {e}")
 
-            legend_start_row = 1
+            legend_start_row = 4
             legend_col_label = 21 # Column U
             legend_col_val = 22   # Column V
             
-            worksheet.write(0, legend_col_label, "Ranking Legend (minimum):", workbook.add_format({'font': 'Aptos Narrow', 'bold': True}))
+            worksheet.write(2, legend_col_label, "Ranking Legend (minimum):", workbook.add_format({'font': 'Aptos Narrow', 'bold': True}))
             
             legend_items = [
-                ('', '', '#FFFFFF'),
                 ('AAA', 10000000, '#00B050'), # Green
                 ('AA', 5000000, '#92D050'),   # Light Green
                 ('A', 2000000, '#FCE4D6'),    # Peach/Tan
@@ -358,7 +363,7 @@ def apply_excel_highlighting(workbook, worksheet, df):
     rank_formats = {}
     for rank, hex_code in rank_colors.items():
         rank_formats[rank] = {
-            'text': workbook.add_format({'font_name': 'Aptos Narrow', 'bg_color': hex_code, 'border': 1, 'align': 'center'}),
+            'text': workbook.add_format({'font_name': 'Aptos Narrow', 'bg_color': hex_code, 'border': 1, 'align': 'left'}),
             'money': workbook.add_format({'font_name': 'Aptos Narrow', 'bg_color': hex_code, 'border': 1, 'num_format': '$#,##0.00'})
         }
 
@@ -374,17 +379,19 @@ def apply_excel_highlighting(workbook, worksheet, df):
 
     # 4. Loop through every row
     for row_num in range(len(df)):
+        excel_row = row_num + 3
+        
         # --- Handle Ranking and Assets ---
         rank_val = str(df.iloc[row_num]['Ranking.1']).strip()
         
         if rank_val in rank_formats:
             # Highlight Ranking
-            worksheet.write(row_num + 1, rank_col_idx, rank_val, rank_formats[rank_val]['text'])
+            worksheet.write(excel_row, rank_col_idx, rank_val, rank_formats[rank_val]['text'])
             
             # Highlight both Asset columns with the same rank color
             asset_val = df.iloc[row_num]['Sum of Total Assets .1']
-            worksheet.write(row_num + 1, assets_col_idx, asset_val, rank_formats[rank_val]['money'])
-            worksheet.write(row_num + 1, assets1_col_idx, asset_val, rank_formats[rank_val]['money'])
+            worksheet.write(excel_row, assets_col_idx, asset_val, rank_formats[rank_val]['money'])
+            worksheet.write(excel_row, assets1_col_idx, asset_val, rank_formats[rank_val]['money'])
         
         # --- Handle MoM Change Highlighting ---
         mom_change_val = df.iloc[row_num]['MoM Change']
@@ -392,9 +399,9 @@ def apply_excel_highlighting(workbook, worksheet, df):
         # Check if it's a number and not NaN
         if pd.notna(mom_change_val):
             if mom_change_val > 0:
-                worksheet.write(row_num + 1, mom_change_idx, mom_change_val, pos_fmt)
+                worksheet.write(excel_row, mom_change_idx, mom_change_val, pos_fmt)
             elif mom_change_val < 0:
-                worksheet.write(row_num + 1, mom_change_idx, mom_change_val, neg_fmt)
+                worksheet.write(excel_row, mom_change_idx, mom_change_val, neg_fmt)
     
 def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
     # --- DIAGNOSTIC 1: Initial Load ---
