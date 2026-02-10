@@ -207,18 +207,18 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             # --- Define Styles ---
             font_settings = {'font_name': 'Aptos Narrow', 'font_size': 11}
 
-            dark_blue = workbook.add_format({**font_settings, 'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 1, 'align': 'left'})
-            light_blue = workbook.add_format({**font_settings, 'bg_color': "#C7E5F3", 'font_color': 'black', 'bold': True, 'border': 1, 'align': 'left'})
-            money_fmt = workbook.add_format({**font_settings, 'num_format': '$#,##0.00', 'border': 1})
-            percent_fmt = workbook.add_format({**font_settings, 'num_format': '0.0%', 'border': 1, 'align': 'left'})
-            border_fmt = workbook.add_format({**font_settings, 'border': 1})
-            bold_border = workbook.add_format({**font_settings, 'bold': True, 'border': 1})
-            left_align_fmt = workbook.add_format({**font_settings, 'font_size': 11, 'align': 'left', 'border': 1})
+            dark_blue = workbook.add_format({**font_settings, 'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 0, 'align': 'left'})
+            light_blue = workbook.add_format({**font_settings, 'bg_color': "#C7E5F3", 'font_color': 'black', 'bold': True, 'border': 0, 'align': 'left'})
+            money_fmt = workbook.add_format({**font_settings, 'num_format': '$#,##0.00', 'border': 0})
+            percent_fmt = workbook.add_format({**font_settings, 'num_format': '0.0%', 'border': 0, 'align': 'left'})
+            border_fmt = workbook.add_format({**font_settings, 'border': 0})
+            bold_border = workbook.add_format({**font_settings, 'bold': True, 'border': 0})
+            left_align_fmt = workbook.add_format({**font_settings, 'font_size': 11, 'align': 'left', 'border': 0})
             no_border_fmt = workbook.add_format({**font_settings, 'border': 0})
                         
             rank_colors = {
-                'AAA': '#00B050', 'AA': '#92D050', 'A': '#E2F0D9',
-                'BB': '#00B0F0', 'B': '#B4C6E7', 'C': '#FFFF00'
+                'AAA': '#4FAD5B', 'AA': '#9FCE63', 'A': '#DFF1D3',
+                'BB': '#79ADEA', 'B': '#ADC8E9', 'C': '#FFFF54'
             }
 
             num_rows = len(df_output)
@@ -281,8 +281,8 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
 
             for i, (rank, val, color) in enumerate(legend_items):
                 row = legend_start_row + i
-                fmt = workbook.add_format({'font': 'Aptos Narrow', 'bg_color': color, 'border': 1})
-                money_fmt_legend = workbook.add_format({'font': 'Aptos Narrow', 'bg_color': color, 'border': 1, 'num_format': '$#,##0.00'})
+                fmt = workbook.add_format({'font': 'Aptos Narrow', 'bg_color': color, 'border': 0})
+                money_fmt_legend = workbook.add_format({'font': 'Aptos Narrow', 'bg_color': color, 'border': 0, 'num_format': '$#,##0.00'})
                 
                 worksheet.write(row, legend_col_label, rank, fmt)
                 worksheet.write(row, legend_col_val, val, money_fmt_legend)
@@ -357,8 +357,8 @@ def apply_excel_highlighting(workbook, worksheet, df):
     font_base = {'font_name': 'Aptos Narrow', 'font_size': 11}
 
     # 2. Pre-create formats with Aptos Narrow
-    pos_fmt = workbook.add_format({**font_base, 'bg_color': '#C6EFCE', 'border': 1, 'num_format': '0.00%', 'align': 'center', 'font_color': '#000000'})
-    neg_fmt = workbook.add_format({**font_base, 'bg_color': '#FFC7CE', 'border': 1, 'num_format': '0.00%', 'align': 'center', 'font_color': '#9C0006'})
+    pos_fmt = workbook.add_format({**font_base, 'bg_color': '#C6EFCE', 'border': 1, 'num_format': '0.00%', 'align': 'left', 'font_color': '#000000'})
+    neg_fmt = workbook.add_format({**font_base, 'bg_color': '#FFC7CE', 'border': 1, 'num_format': '0.00%', 'align': 'left', 'font_color': '#9C0006'})
         
     rank_formats = {}
     for rank, hex_code in rank_colors.items():
