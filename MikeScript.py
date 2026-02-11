@@ -211,7 +211,6 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             percent_fmt = workbook.add_format({**font_settings, 'num_format': '0.0%', 'border': 0, 'align': 'left'})
             border_fmt = workbook.add_format({**font_settings, 'border': 0})
             bold_border = workbook.add_format({**font_settings, 'bold': True, 'border': 0})
-            left_align_fmt = workbook.add_format({**font_settings, 'font_size': 11, 'align': 'left', 'border': 0})
             no_border_fmt = workbook.add_format({**font_settings, 'border': 0})
             
             #Source Sheets
@@ -250,26 +249,14 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                     record = {
                         'ModelName': row.get('ModelName', ''),
                         'accountid': row.get('accountid', ''),
-                        'Total Assets Excluding Cash': row.get('Total Assets Excluding Cash', 0),
-                        'Total Cash': row.get('Total Cash', 0),
                         'Total Assets': row.get('Total Assets', 0),
-                        'Target %': row.get('Target %', ''),
-                        'Target Value': row.get('Target Value', ''),
-                        'Cust Rep #': row.get('Cust Rep #', ''),
-                        'Per Rep #': row.get('Per Rep #', ''),
                         'AccountState': row.get('AccountState', ''),
                         'Rep Name': rep_name_raw,
-                        'Rep Address 1': row.get('Rep Address 1', ''),
-                        'Rep Address 2': row.get('Rep Address 2', ''),
-                        'Rep Address 3': row.get('Rep Address 3', ''),
                         'Primary Rep ID': rep_obj.Primary_Rep_ID if rep_obj else '',
                         'Secondary Rep Name': row.get('Secondary Rep Name', ''),
                         'Secondary Rep ID': row.get('Secondary Rep ID', ''),
                         'Rep City': row.get('Rep City', ''),
                         'Rep State': row.get('Rep State', ''),
-                        'Rep Zip': row.get('Rep Zip', ''),
-                        'Rep Email (via Fit List)': rep_obj.Email if rep_obj else '',
-                        'Rep Phone': row.get('Rep Phone', ''),
                         'True State': rep_obj.True_State if rep_obj else '',
                         'AE': rep_obj.AE if rep_obj else '',
                         'Territory': rep_obj.Territory if rep_obj else ''
@@ -291,7 +278,7 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                     # Dynamic Width
                     column_data = df_primmy[col_name].fillna('')
                     max_len = max(column_data.astype(str).map(len).max(), len(str(col_name))) + 3
-                    max_len = min(max_len, 60)
+                    max_len = min(max_len, 40)
                     
                     # Apply money format to asset columns, horizontal border to others
                     if any(x in col_name for x in ['Assets', 'Cash', 'Value']):
