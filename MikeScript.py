@@ -200,11 +200,9 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
     
     try:
         with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-            df_output.to_excel(writer, sheet_name=f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}', index=False, startrow=3, header=False)
             workbook  = writer.book
-            worksheet = writer.sheets[f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}']
-
-            # --- Define Styles ---
+            
+                        # --- Define Styles ---
             font_settings = {'font_name': 'Aptos Narrow', 'font_size': 11}
 
             dark_blue = workbook.add_format({**font_settings, 'bg_color': '#1F4E78', 'font_color': 'white', 'bold': True, 'border': 0, 'align': 'left'})
@@ -215,7 +213,101 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             bold_border = workbook.add_format({**font_settings, 'bold': True, 'border': 0})
             left_align_fmt = workbook.add_format({**font_settings, 'font_size': 11, 'align': 'left', 'border': 0})
             no_border_fmt = workbook.add_format({**font_settings, 'border': 0})
+            
+            #Source Sheets
+            try:
+                df_details = pd.read_excel(details_path, sheet_name=details_sheet)
+                df_details.to_excel(writer, sheet_name='Account-Rep Details', index=False)
+                
+                details_ws = writer.sheets['Account-Rep Details']
+                
+                header_bold = workbook.add_format({'bold': True, 'font_name': 'Aptos Narrow'})
+                
+                details_ws.set_column(0, len(df_details.columns) - 1, 25)
+                
+                for col_num, value in enumerate(df_details.columns.values):
+                    details_ws.write(0, col_num, value, header_bold)
+                
+                details_ws.autofilter(0, 0, len(df_details), len(df_details.columns) - 1)
+                
+            except:
+                print(f"\ACCOUNT-REP DETAIL TAB ERROR: {e}")
+                
+            try:
+                # 1. Load the raw details
+                df_details_raw = pd.read_excel(details_path, sheet_name=details_sheet)
+                df_details_raw.columns = df_details_raw.columns.str.strip()
+                
+                primmy_data = []
+                
+                # 2. Iterate and build the records
+                for _, row in df_details_raw.iterrows():
+                    # Look up the rep object to get the 'True State', 'AE', 'Territory', etc.
+                    rep_name_raw = str(row.get('Rep Name', '')).strip()
+                    rep_obj = rep_lookup(rep_name_raw)
+                    
+                    # Build the dictionary for this row
+                    record = {
+                        'ModelName': row.get('ModelName', ''),
+                        'accountid': row.get('accountid', ''),
+                        'Total Assets Excluding Cash': row.get('Total Assets Excluding Cash', 0),
+                        'Total Cash': row.get('Total Cash', 0),
+                        'Total Assets': row.get('Total Assets', 0),
+                        'Target %': row.get('Target %', ''),
+                        'Target Value': row.get('Target Value', ''),
+                        'Cust Rep #': row.get('Cust Rep #', ''),
+                        'Per Rep #': row.get('Per Rep #', ''),
+                        'AccountState': row.get('AccountState', ''),
+                        'Rep Name': rep_name_raw,
+                        'Rep Address 1': row.get('Rep Address 1', ''),
+                        'Rep Address 2': row.get('Rep Address 2', ''),
+                        'Rep Address 3': row.get('Rep Address 3', ''),
+                        'Primary Rep ID': rep_obj.Primary_Rep_ID if rep_obj else '',
+                        'Secondary Rep Name': row.get('Secondary Rep Name', ''),
+                        'Secondary Rep ID': row.get('Secondary Rep ID', ''),
+                        'Rep City': row.get('Rep City', ''),
+                        'Rep State': row.get('Rep State', ''),
+                        'Rep Zip': row.get('Rep Zip', ''),
+                        'Rep Email (via Fit List)': rep_obj.Email if rep_obj else '',
+                        'Rep Phone': row.get('Rep Phone', ''),
+                        'True State': rep_obj.True_State if rep_obj else '',
+                        'AE': rep_obj.AE if rep_obj else '',
+                        'Territory': rep_obj.Territory if rep_obj else ''
+                    }
+                    primmy_data.append(record)
+
+                # 3. Create DataFrame and Write to Sheet
+                df_primmy = pd.DataFrame(primmy_data)
+                sheet_name_primmy = "Data for Primmy AUM"
+                df_primmy.to_excel(writer, sheet_name=sheet_name_primmy, index=False, startrow=1, header=False)
+                primmy_ws = writer.sheets[sheet_name_primmy]
+                
+                # 4. Formatting
+                header_bold_fmt = workbook.add_format({**font_settings, 'bold': True, 'font_color': 'black', 'bottom': 1})
+                horiz_data_fmt = workbook.add_format({**font_settings, 'bottom': 1, 'top': 1, 'border_color': '#D9D9D9'})
+                money_horiz_fmt = workbook.add_format({**font_settings, 'num_format': '$#,##0.00', 'bottom': 1, 'top': 1, 'border_color': '#D9D9D9'})
+
+                for i, col_name in enumerate(df_primmy.columns):
+                    # Dynamic Width
+                    column_data = df_primmy[col_name].fillna('')
+                    max_len = max(column_data.astype(str).map(len).max(), len(str(col_name))) + 3
+                    max_len = min(max_len, 60)
+                    
+                    # Apply money format to asset columns, horizontal border to others
+                    if any(x in col_name for x in ['Assets', 'Cash', 'Value']):
+                        primmy_ws.set_column(i, i, max_len, money_horiz_fmt)
+                    else:
+                        primmy_ws.set_column(i, i, max_len, horiz_data_fmt)
                         
+                    primmy_ws.write(0, i, col_name, header_bold_fmt)
+
+                primmy_ws.autofilter(0, 0, len(df_primmy), len(df_primmy.columns) - 1)
+                primmy_ws.freeze_panes(1, 0)
+
+            except Exception as e:
+                print(f"\nPRIMMY DATA SHEET ERROR: {e}")
+            
+           
             rank_colors = {
                 'AAA': '#4FAD5B', 'AA': '#9FCE63', 'A': '#DFF1D3',
                 'BB': '#79ADEA', 'B': '#ADC8E9', 'C': '#FFFF54'
@@ -224,6 +316,8 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
             num_rows = len(df_output)
             num_cols = len(df_output.columns)
             
+            df_output.to_excel(writer, sheet_name=f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}', index=False, startrow=3, header=False)
+            worksheet = writer.sheets[f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}']    
             worksheet.autofilter(2, 0, num_rows + 2, 1)
             worksheet.autofilter(2, 8, num_rows + 2, 18)
 
@@ -253,12 +347,6 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
 
             worksheet.set_column(6, 7, 10)
             worksheet.set_column(19, 20, 10)
-            try:
-                pd.read_excel(fit_path, sheet_name=fit_sheet, header=1).to_excel(writer, sheet_name='Source_FIT', index=False)
-                pd.read_excel(details_path, sheet_name=details_sheet).to_excel(writer, sheet_name='Source_Details', index=False)
-                pd.read_excel(pivot_path, sheet_name=pivot_sheet).to_excel(writer, sheet_name='Source_Pivots', index=False)
-            except:
-                print(f"\nSOURCE TAB ERROR: {e}")
 
             legend_start_row = 4
             legend_col_label = 21 # Column U
