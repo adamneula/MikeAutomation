@@ -60,9 +60,9 @@ def Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, l
     market_benchmark = mode_series.iloc[0] if not mode_series.empty else 0
     df['Mode.Sngl'] = market_benchmark
     #AJ
-    df['Flow'] = df['$ Change'] - (df['Prev Month Assets'] * df['Mode.Sngl'])
+    df['Flow (MODE)'] = df['$ Change'] - (df['Prev Month Assets'] * df['Mode.Sngl'])
     #AK
-    df['Status'] = np.where(df['Flow'] < 10000, '', np.where(df['Prev Month Assets'] > 0, 'Addition', 'Open'))
+    df['Type'] = np.where(df['Flow (MODE)'] < 10000, '', np.where(df['Prev Month Assets'] > 0, 'Addition', 'Open'))
     #AL
     df['True State'] = df['Rep Name'].apply(lambda x: rep_lookup(x).True_State if rep_lookup(x) else '')
     #AM
@@ -91,7 +91,7 @@ def Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, l
         percent_fmt = workbook.add_format({'num_format': '0.00%'})
         money_yellow = workbook.add_format({'num_format': '$#,##0.00', 'bg_color': '#FFFF00'})
         
-        # Status/Territory Formats
+        # Type/Territory Formats
         green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
         purple_fmt = workbook.add_format({'bg_color': '#E1D5E7', 'font_color': '#400080'})
 
@@ -115,26 +115,26 @@ def Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, l
             # Determine Base Format
             fmt = None
             if i in yellow_indices:
-                fmt = money_yellow if any(x in col for x in ['Assets', 'Change', 'Flow']) else yellow_bg
+                fmt = money_yellow if any(x in col for x in ['Assets', 'Change', 'Flow (MODE)']) else yellow_bg
             elif i in orange_indices:
                 fmt = orange_bg
-            elif any(x in col for x in ['$ Change', 'Assets', 'Flow']):
+            elif any(x in col for x in ['$ Change', 'Assets', 'Flow (MODE)']):
                 fmt = money_fmt
             elif any(x in col for x in ['% Change', 'Mode.Sngl']):
                 fmt = percent_fmt
             
             worksheet.set_column(i, i, max_len, fmt)
 
-        # --- 4. Conditional Formatting (Status & Territory) ---
+        # --- 4. Conditional Formatting (Type & Territory) ---
         last_row = len(df)
-        status_idx = df.columns.get_loc('Status')
+        Type_idx = df.columns.get_loc('Type')
         ae_idx = df.columns.get_loc('AE')
         terr_idx = df.columns.get_loc('Territory')
 
-        # Status: Open (Green) & Addition (Purple)
-        worksheet.conditional_format(1, status_idx, last_row, status_idx, 
+        # Type: Open (Green) & Addition (Purple)
+        worksheet.conditional_format(1, Type_idx, last_row, Type_idx, 
                                      {'type': 'cell', 'criteria': 'equal to', 'value': '"Open"', 'format': green_fmt})
-        worksheet.conditional_format(1, status_idx, last_row, status_idx, 
+        worksheet.conditional_format(1, Type_idx, last_row, Type_idx, 
                                      {'type': 'cell', 'criteria': 'equal to', 'value': '"Addition"', 'format': purple_fmt})
 
         # Territory: West (Purple) & East (Green)
@@ -190,11 +190,13 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
         df['$ Change'] = df['Total Assets'] - df['Prev Month Assets']
         df['% Change'] = np.where(df['Prev Month Assets'] > 0, df['$ Change'] / df['Prev Month Assets'], 0)
         
-        # Mode/Flow/Status
+        # Mode/Flow/Type
         mode_val = df.loc[df['Prev Month Assets'] > 0, '% Change'].round(4).mode()
         df['Mode.Sngl'] = mode_val.iloc[0] if not mode_val.empty else 0
-        df['Flow'] = df['$ Change'] - (df['Prev Month Assets'] * df['Mode.Sngl'])
-        df['Status'] = np.where(df['Flow'] < 1000, '', np.where(df['Prev Month Assets'] > 0, 'Addition', 'Open'))
+        df['Flow (MODE)'] = df['$ Change'] - (df['Prev Month Assets'] * df['Mode.Sngl'])
+        #TODO: Get BD performance in somehow so I can use this, until then fall back on Flow from Mode
+        #df['Flow (BD)'] = df['$ Change'] - (df['Prev Month Assets']*df['BD Performance'])
+        df['Type'] = np.where(df['Flow (MODE)'] < 1000, '', np.where(df['Prev Month Assets'] > 0, 'Addition', 'Open'))
         
         # Meta Data
         df['AE'] = df['Rep Name'].apply(lambda x: rep_lookup(x).AE if rep_lookup(x) else '')
@@ -231,7 +233,7 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
         money_yellow = workbook.add_format({**base_style, 'num_format': '$#,##0.00', 'bg_color': '#FFFF00'})
         percent_fmt = workbook.add_format({**base_style, 'num_format': '0.00%'})
         
-        # Conditional formats (Regional/Status) - Removed borders here too
+        # Conditional formats (Regional/Type) - Removed borders here too
         green_fmt = workbook.add_format({**base_style, 'bg_color': '#C6EFCE', 'font_color': '#006100'})
         purple_fmt = workbook.add_format({**base_style, 'bg_color': '#E1D5E7', 'font_color': '#400080'})
 
@@ -242,7 +244,7 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
         # --- 4. UPDATED YELLOW TARGETS ---
         yellow_target_cols = [
             'ModelCode', 'accountid', 'Total Assets', 'Rep Name', 
-            'Rep City', 'Rep State', 'Flow', 'AE', 'Territory'
+            'Rep City', 'Rep State', 'Flow (MODE)', 'AE', 'Territory'
         ]
         
         for i, col in enumerate(final_df.columns):
@@ -252,8 +254,8 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
             
             # Formatting Decision
             if col in yellow_target_cols:
-                fmt = money_yellow if any(x in col for x in ['Assets', 'Flow']) else yellow_bg
-            elif any(x in col for x in ['Change', 'Assets', 'Flow']):
+                fmt = money_yellow if any(x in col for x in ['Assets', 'Flow (MODE)']) else yellow_bg
+            elif any(x in col for x in ['Change', 'Assets', 'Flow (MODE)']):
                 fmt = money_fmt
             elif any(x in col for x in ['Change', 'Mode']):
                 fmt = percent_fmt
@@ -265,7 +267,7 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
 
         # --- 5. CONDITIONAL FORMATTING (Regional Sync) ---
         last_row = len(final_df)
-        status_idx = final_df.columns.get_loc('Status')
+        Type_idx = final_df.columns.get_loc('Type')
         ae_idx = final_df.columns.get_loc('AE')
         terr_idx = final_df.columns.get_loc('Territory')
         
@@ -279,10 +281,10 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
         
         t_letter = get_excel_letter(terr_idx)
 
-        # Status rules
-        worksheet.conditional_format(1, status_idx, last_row, status_idx, 
+        # Type rules
+        worksheet.conditional_format(1, Type_idx, last_row, Type_idx, 
                                      {'type': 'cell', 'criteria': 'equal to', 'value': '"Open"', 'format': green_fmt})
-        worksheet.conditional_format(1, status_idx, last_row, status_idx, 
+        worksheet.conditional_format(1, Type_idx, last_row, Type_idx, 
                                      {'type': 'cell', 'criteria': 'equal to', 'value': '"Addition"', 'format': purple_fmt})
 
         # Regional rules: Applying to AE and Territory based on Territory value
