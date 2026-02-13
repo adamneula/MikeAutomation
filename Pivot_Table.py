@@ -1,54 +1,47 @@
-import pandas as pd
-import os
+from Utils import *
+from Rep_Objects import *
 from datetime import datetime, timedelta
-import numpy as np
 from dateutil.relativedelta import relativedelta
-from tqdm import tqdm
-
-tqdm.pandas()
 
 eastBalance = 0
 westBalance = 0
 
-reps = {}
-IDtoName = {}
-States = {
-    'AL', 'AK', 'AZ', 'AR', 'AB', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 
-    'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 
-    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 
-    'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 
-    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
-}
-NamesNotFound = {}
+def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
+    global eastBalance, westBalance
 
-class Representatives():
-    def __init__(self, name: str, ID: str, state: str, email: str, AE: str, territory: str, total: float):
-        self.Advisor_Name = name
-        self.Primary_Rep_ID = ID
-        self.True_State = state
-        self.Email = email
-        self.AE = AE
-        self.Territory = territory
-        self.Ranking = None
-        self.Sum_of_Total_Assets = 0
-        self.Previous_Month_AUM = None
-        self.MoM_Change = None
-        self.Dollar_Val_Change = None
-        self.Lifetime_Total = total
-        
-    def __hash__(self):
-        return hash(self.Primary_Rep_ID)
-
-    def __eq__(self, other):
-        if not isinstance(other, Representatives):
-            return False
-        return self.Primary_Rep_ID == other.Primary_Rep_ID
+    df = load_dynamic_df(Primerica_Dir, Primerica_Sheet_Name, 'Rep Name')
+    df.columns = df.columns.str.strip()
     
-    def __str__(self):
-        return f'{self.Advisor_Name} {self.True_State} {self.Primary_Rep_ID} {self.Email} {self.Territory} AE: {self.AE} Balance: {self.Sum_of_Total_Assets}'
+    for index, row in df.iterrows():
+        clean_Name = str(row['Rep Name']).strip()
+        if clean_Name == 'nan': continue
+        elif clean_Name.lower().split()[0] == 'christophe':
+            clean_Name = " ".join(['CHRISTOPHER'] + clean_Name.upper().split()[1:])
+        elif clean_Name.lower() == 'danny creswell': clean_Name = 'DANIEL CRESWELL'
+        
+        if clean_Name.lower() in reps:
+            reps[clean_Name.lower()].add_account(row['Total Assets'])
+            if reps[clean_Name.lower()].Territory == 'East': eastBalance += row['Total Assets']
+            else: westBalance += row['Total Assets']
+        elif clean_Name[:5] in IDtoName:
+            reps[IDtoName[clean_Name[:5]]].add_account(row['Total Assets'])
+            if reps[IDtoName[clean_Name[:5]]].Territory == 'East': eastBalance += row['Total Assets']
+            else: westBalance += row['Total Assets']
 
-    def add_account(self, amount):
-        self.Sum_of_Total_Assets += amount
+        elif clean_Name.replace(' ', '') in IDtoName:
+            reps[IDtoName[clean_Name.replace(' ', '')]].add_account(row['Total Assets'])
+            if reps[IDtoName[clean_Name.replace(' ', '')]].Territory == 'East': eastBalance += row['Total Assets']
+            else: westBalance += row['Total Assets']
+
+    for rep in reps:
+        #assign ranking
+        if reps[rep].Sum_of_Total_Assets == 0: continue
+        elif reps[rep].Sum_of_Total_Assets < 250000: reps[rep].Ranking = 'C'
+        elif reps[rep].Sum_of_Total_Assets < 1000000: reps[rep].Ranking = 'B'
+        elif reps[rep].Sum_of_Total_Assets < 2000000: reps[rep].Ranking = 'BB'
+        elif reps[rep].Sum_of_Total_Assets < 5000000: reps[rep].Ranking = 'A'
+        elif reps[rep].Sum_of_Total_Assets < 10000000: reps[rep].Ranking = 'AA'
+        else: reps[rep].Ranking = 'AAA'
         
 def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
     global reps
@@ -89,47 +82,7 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
         elif territory == 'East': AE = 'Rob Hunt'
         elif territory == 'West': AE = 'MeiWah Wong'
         reps[full_name.lower()] = Representatives(full_name, clean_ID, state, email, AE, territory, total)
-            
-def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
-    global reps, eastBalance, westBalance
-
-    df = load_dynamic_df(Primerica_Dir, Primerica_Sheet_Name, 'Rep Name')
-    df.columns = df.columns.str.strip()
-    
-    for index, row in df.iterrows():
-        clean_Name = str(row['Rep Name']).strip()
-        if clean_Name == 'nan': continue
-        elif clean_Name.lower().split()[0] == 'christophe':
-            clean_Name = " ".join(['CHRISTOPHER'] + clean_Name.upper().split()[1:])
-        elif clean_Name.lower() == 'danny creswell': clean_Name = 'DANIEL CRESWELL'
-        
-        if clean_Name.lower() in reps:
-            reps[clean_Name.lower()].add_account(row['Total Assets'])
-            if reps[clean_Name.lower()].Territory == 'East': eastBalance += row['Total Assets']
-            else: westBalance += row['Total Assets']
-        elif clean_Name[:5] in IDtoName:
-            reps[IDtoName[clean_Name[:5]]].add_account(row['Total Assets'])
-            if reps[IDtoName[clean_Name[:5]]].Territory == 'East': eastBalance += row['Total Assets']
-            else: westBalance += row['Total Assets']
-
-        elif clean_Name.replace(' ', '') in IDtoName:
-            reps[IDtoName[clean_Name.replace(' ', '')]].add_account(row['Total Assets'])
-            if reps[IDtoName[clean_Name.replace(' ', '')]].Territory == 'East': eastBalance += row['Total Assets']
-            else: westBalance += row['Total Assets']
-
-        else:
-            NamesNotFound[clean_Name] = index
-
-    for rep in reps:
-        #assign ranking
-        if reps[rep].Sum_of_Total_Assets == 0: continue
-        elif reps[rep].Sum_of_Total_Assets < 250000: reps[rep].Ranking = 'C'
-        elif reps[rep].Sum_of_Total_Assets < 1000000: reps[rep].Ranking = 'B'
-        elif reps[rep].Sum_of_Total_Assets < 2000000: reps[rep].Ranking = 'BB'
-        elif reps[rep].Sum_of_Total_Assets < 5000000: reps[rep].Ranking = 'A'
-        elif reps[rep].Sum_of_Total_Assets < 10000000: reps[rep].Ranking = 'AA'
-        else: reps[rep].Ranking = 'AAA'
-    
+             
 def load_previous_month_data(prev_month_file, prev_month_sheet):
     try:
         df_prev = load_dynamic_df(prev_month_file, prev_month_sheet, 'Primary Rep ID')
@@ -230,7 +183,7 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                 details_ws.autofilter(0, 0, len(df_details), len(df_details.columns) - 1)
                 
             except:
-                print(f"\ACCOUNT-REP DETAIL TAB ERROR: {e}")
+                print(f"\\ACCOUNT-REP DETAIL TAB ERROR: {e}")
                 
             try:
                 # 1. Load the raw details
@@ -374,7 +327,7 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                 # Read the previous pivot sheet
                 df_prev_grid = pd.read_excel(pivot_path, sheet_name=pivot_sheet, header=None)
                 
-                # Excel 'W16' corresponds to row index 15, column index 22 (0-indexed)
+                # Excel 'W12' corresponds to row index 11, column index 22 (0-indexed)
                 # pandas uses [row, col] format
                 val = df_prev_grid.iloc[11, 22] 
                 
@@ -416,7 +369,7 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
     
     except Exception as e:
         print(f"\nERROR: {e}")
-    
+
 def apply_excel_highlighting(workbook, worksheet, df):
     # 1. Define the Ranking Legend Hex Codes
     rank_colors = {
@@ -474,261 +427,3 @@ def apply_excel_highlighting(workbook, worksheet, df):
                 worksheet.write(excel_row, mom_change_idx, mom_change_val, pos_fmt)
             elif mom_change_val < 0:
                 worksheet.write(excel_row, mom_change_idx, mom_change_val, neg_fmt)
-    
-def Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
-    # --- DIAGNOSTIC 1: Initial Load ---
-    df_raw = pd.read_excel(thisMonth, sheet_name=thisMonthSheet)
-    df_raw.columns = df_raw.columns.str.strip()
-    print(f"DEBUG: Total rows in raw file: {len(df_raw)}")
-
-    # Clean the ModelName data itself (not just the header)
-    df_raw['ModelName'] = df_raw['ModelName'].astype(str).str.strip()
-    
-    # --- DIAGNOSTIC 2: The Filter ---
-    target_model = 'Genter Capital Dividend Income Model'
-    target_institution = 'Primerica Brokerage Services'
-
-    # Filter for BOTH at once. 
-    # Use .str.contains if the names might have extra spaces
-    df = df_raw[(df_raw['ModelName'] == target_model) & (df_raw['IBD/Sponsor Name'] == target_institution)].copy()
-    
-    if len(df) == 0:
-        print("DEBUG: Available models in file were:", df_raw['ModelName'].unique()[:10])
-
-    # --- DIAGNOSTIC 3: The ID Match ---
-    df_prev_raw = pd.read_excel(lastMonth, sheet_name=lastMonthSheet)
-    df_prev_raw.columns = df_prev_raw.columns.str.strip()
-    
-    # Cast to string to prevent Int vs String mismatch
-    df['accountid'] = df['accountid'].astype(str).str.strip()
-    df_prev_raw['accountid'] = df_prev_raw['accountid'].astype(str).str.strip()
-    
-    prev_assets_map = dict(zip(df_prev_raw['accountid'], df_prev_raw['Total Assets']))
-    
-    # Count how many current accounts exist in the previous month's map
-    match_count = df['accountid'].isin(prev_assets_map.keys()).sum()
-    print(f"DEBUG: Out of {len(df)} accounts, {match_count} were found in last month's data.")
-    print(f"DEBUG: {len(df) - match_count} accounts are being treated as 'New Open'.")
-
-    # ... proceed with the rest of your logic ...
-    
-    rep_name_idx = df.columns.get_loc('Rep Name')
-    #V
-    df.insert(rep_name_idx + 1, 'Rep ID', df['Rep Name'].apply(lambda x: rep_lookup(x).Primary_Rep_ID if rep_lookup(x) else 'Not Found'))
-    #AD
-    df['Rep Email'] = df['Rep Name'].apply(lambda x: rep_lookup(x).Email if rep_lookup(x) else 'Not Found')
-    #AF
-    df['Prev Month Assets'] = df['accountid'].map(prev_assets_map).fillna(0)
-    #AG
-    df['Total Assets'] = pd.to_numeric(df['Total Assets'], errors='coerce').fillna(0)
-    df['Prev Month Assets'] = pd.to_numeric(df['Prev Month Assets'], errors='coerce').fillna(0)
-    df['$ Change'] = df['Total Assets'] - df['Prev Month Assets']
-    #AH
-    df['% Change'] = np.where(df['Prev Month Assets'] > 0, df['$ Change'] / df['Prev Month Assets'], 0)
-    #AI
-    mode_series = df.loc[df['Prev Month Assets'] > 0, '% Change'].round(4).mode()
-    market_benchmark = mode_series.iloc[0] if not mode_series.empty else 0
-    df['Mode.Sngl'] = market_benchmark
-    #AJ
-    df['Flow'] = df['$ Change'] - (df['Prev Month Assets'] * df['Mode.Sngl'])
-    #AK
-    df['Status'] = np.where(df['Flow'] < 10000, '', np.where(df['Prev Month Assets'] > 0, 'Addition', 'Open'))
-    #AL
-    df['True State'] = df['Rep Name'].apply(lambda x: rep_lookup(x).True_State if rep_lookup(x) else '')
-    #AM
-    df['AE'] = df['Rep Name'].apply(lambda x: rep_lookup(x).AE if rep_lookup(x) else '')
-    #AN
-    df['Territory'] = df['Rep Name'].apply(lambda x: rep_lookup(x).Territory if rep_lookup(x) else '')
-    
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    clean_name = os.path.splitext(os.path.basename(thisMonth))[0]
-    raw_filename = f'{clean_name} - New and Additions.xlsx'
-    output_path = get_unique_filename(os.path.join(base_dir, raw_filename))
-    
-    with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-        sheet_name = "Primerica Div Model"
-        df.to_excel(writer, sheet_name=sheet_name, index=False)
-        
-        workbook = writer.book
-        worksheet = writer.sheets[sheet_name]
-        
-        # --- Define Formats ---
-        yellow_bg = workbook.add_format({'bg_color': '#FFFF00', 'border': 1})
-        orange_bg = workbook.add_format({'bg_color': '#FFC000', 'border': 1})
-        
-        # Money/Percent with Yellow/Orange overrides
-        money_fmt = workbook.add_format({'num_format': '$#,##0.00'})
-        percent_fmt = workbook.add_format({'num_format': '0.00%'})
-        money_yellow = workbook.add_format({'num_format': '$#,##0.00', 'bg_color': '#FFFF00', 'border': 1})
-        
-        # Status/Territory Formats
-        green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
-        purple_fmt = workbook.add_format({'bg_color': '#E1D5E7', 'font_color': '#400080'})
-
-        # --- 1. Basic Setup ---
-        worksheet.autofilter(2, 0, 2 + len(df), len(df.columns) - 1)
-        worksheet.freeze_panes(1, 0)
-
-        # --- 2. Static Column Highlights (M, P, V, AA, AB, AJ, AL in Yellow | W in Orange) ---
-        # Map Excel letters to 0-based indices for the loop
-        yellow_cols = ['M', 'P', 'V', 'AA', 'AB', 'AJ', 'AL']
-        orange_cols = ['W']
-        
-        def col_to_idx(col_letter):
-            # Converts 'A' -> 0, 'B' -> 1, etc.
-            num = 0
-            for c in col_letter:
-                num = num * 26 + (ord(c.upper()) - ord('A') + 1)
-            return num - 1
-
-        yellow_indices = [col_to_idx(c) for c in yellow_cols]
-        orange_indices = [col_to_idx(c) for c in orange_cols]
-
-        # --- 3. The Main Formatting Loop ---
-        for i, col in enumerate(df.columns):
-            max_len = max(df[col].fillna('').astype(str).map(len).max(), len(str(col))) + 2
-            max_len = min(max_len, 50)
-            
-            # Determine Base Format
-            fmt = None
-            if i in yellow_indices:
-                fmt = money_yellow if any(x in col for x in ['Assets', 'Change', 'Flow']) else yellow_bg
-            elif i in orange_indices:
-                fmt = orange_bg
-            elif any(x in col for x in ['$ Change', 'Assets', 'Flow']):
-                fmt = money_fmt
-            elif any(x in col for x in ['% Change', 'Mode.Sngl']):
-                fmt = percent_fmt
-            
-            worksheet.set_column(i, i, max_len, fmt)
-
-        # --- 4. Conditional Formatting (Status & Territory) ---
-        last_row = len(df)
-        status_idx = df.columns.get_loc('Status')
-        ae_idx = df.columns.get_loc('AE')
-        terr_idx = df.columns.get_loc('Territory')
-
-        # Status: Open (Green) & Addition (Purple)
-        worksheet.conditional_format(1, status_idx, last_row, status_idx, 
-                                     {'type': 'cell', 'criteria': 'equal to', 'value': '"Open"', 'format': green_fmt})
-        worksheet.conditional_format(1, status_idx, last_row, status_idx, 
-                                     {'type': 'cell', 'criteria': 'equal to', 'value': '"Addition"', 'format': purple_fmt})
-
-        # Territory: West (Purple) & East (Green)
-        # We apply this to both the AE and Territory columns
-        for idx in [ae_idx, terr_idx]:
-            worksheet.conditional_format(1, idx, last_row, idx, 
-                                         {'type': 'formula', 'criteria': f'=$AN2="West"', 'format': purple_fmt})
-            worksheet.conditional_format(1, idx, last_row, idx, 
-                                         {'type': 'formula', 'criteria': f'=$AN2="East"', 'format': green_fmt})
-    
-    print(f"SUCCESS: Detailed report with color-coding saved to {os.path.abspath(output_path)}")
-
-#HELPER FUNCTIONS
-def get_unique_filename(file_path):
-    """Checks if a file exists and appends a numeric suffix if it does."""
-    if not os.path.exists(file_path):
-        return file_path
-
-    # Split into file path/name and the .xlsx extension
-    base, extension = os.path.splitext(file_path)
-    counter = 1
-    
-    # Try 'FileName 1.xlsx', 'FileName 2.xlsx', etc.
-    new_path = f"{base} {counter}{extension}"
-    while os.path.exists(new_path):
-        counter += 1
-        new_path = f"{base} {counter}{extension}"
-        
-    return new_path
-
-def rep_lookup(input_str) -> Representatives:
-    global reps, IDtoName
-    
-    if not input_str or str(input_str).lower() == 'nan':
-        return None
-
-    input_clean = str(input_str).strip().upper()
-    resolved_name_lower = IDtoName.get(input_clean)
-    
-    if not resolved_name_lower:
-        resolved_name_lower = IDtoName.get(input_clean.replace(" ", ""))
-    if not resolved_name_lower:
-        resolved_name_lower = IDtoName.get(input_clean[:5])
-    target_name_lower = resolved_name_lower if resolved_name_lower else input_clean.lower()
-
-    parts = target_name_lower.split()
-    if parts:
-        first = parts[0]
-        last = " ".join(parts[1:])
-        
-        if first == 'christophe':
-            target_name_lower = " ".join(['christopher', last])
-        elif first == 'danny' and last == 'creswell':
-            target_name_lower = 'daniel creswell'
-        elif first == 'theodore' and last == 'lund':
-            target_name_lower = 'ted lund'
-
-    return reps.get(target_name_lower)
-
-def load_dynamic_df(path, sheet, target_col, max_search=10):
-    """Searches for the header row within the first max_search rows."""
-    for i in range(max_search + 1):
-        try:
-            df = pd.read_excel(path, sheet_name=sheet, header=i)
-            df.columns = df.columns.str.strip()
-            if target_col in df.columns:
-                return df
-        except Exception:
-            continue
-    raise KeyError(f"Could not find header with column '{target_col}' in the first {max_search} rows of {path}")
-
-def main():
-    while True:
-        print("\n" + "="*40)
-        print("      GENTER CAPITAL AUTOMATION")
-        print("="*40)
-        print("1. Generate Primerica AUM Pivot Table")
-        print("2. Run Primerica Div Model Pipeline (additions + opens)")
-        print("3. Run Both Pipelines")
-        print("Q. Quit")
-        print("-" * 40)
-        
-        choice = input("Select an option: ").strip().upper()
-        
-        if choice == 'Q':
-            print("Closing application. Have a good one!")
-            break
-        
-        fitlist = input('Enter FULL PATH of the fit list (<MONTH>-<YEAR): ').strip().replace('"', '')
-        fitlist_sheet = input('Enter the name of the fit list sheet within that excel file (FIT): ')
-        thisMonth = input('Enter FULL PATH of the Primerica excel file (ModelProvider_AUM_RNC_<MONTH><YEAR>.xlsx): ').strip().replace('"', '')
-        thisMonthSheet = input('Enter the name of the Primerica sheet within that excel file (Account-Rep Details): ')
-        lastMonth = input("Enter FULL PATH of last month's pivot table excel file (ModelProvider_AUM_RNC_<MONTH><YEAR>_Pivot.xlsx): ").strip().replace('"', '')
-        
-        if choice == '1':
-            lastMonthTableSheet = input('Enter the name of the pivot table sheet on that excel file (AUM Pivot - <month> <year>): ')
-
-            load_reps_from_xlsx(fitlist, fitlist_sheet)
-            attribute_accounts(thisMonth, thisMonthSheet)
-            load_previous_month_data(lastMonth, lastMonthTableSheet)
-            export_to_pivot(fitlist, fitlist_sheet, thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
-        elif choice == '2':
-            lastMonthAccountSheet = input("Enter the name of the sheet on last month's Primerica table's file (Account-Rep Details): ")
-            
-            load_reps_from_xlsx(fitlist, fitlist_sheet)
-            Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
-        elif choice == '3':
-            lastMonthTableSheet = input('Enter the name of the pivot table sheet on that excel file (AUM Pivot - <month> <year>): ')
-            lastMonthAccountSheet = input("Enter the name of the sheet on last month's Primerica table's file (Account-Rep Details): ")
-            
-            load_reps_from_xlsx(fitlist, fitlist_sheet)
-            attribute_accounts(thisMonth, thisMonthSheet)
-            load_previous_month_data(lastMonth, lastMonthTableSheet)
-            export_to_pivot(fitlist, fitlist_sheet, thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
-            Primerica_Div_Model(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
-        else:
-            print("Invalid selection. Please enter 1, 2, 3, or Q.")
-
-if __name__ == "__main__":
-    main()  
