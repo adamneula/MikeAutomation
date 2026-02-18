@@ -334,11 +334,11 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                 if pd.notna(val) and isinstance(val, (int, float)):
                     prev_aum = float(val)
                 else:
-                    print(f"\n[!] WARNING: Cell W16 in '{pivot_sheet}' is empty or not a number.")
+                    print(f"\n[!] WARNING: Cell W12 in '{pivot_sheet}' is empty or not a number.")
                     print("    Please manually check last month's pivot table.")
 
             except Exception:
-                print(f"\n[!] WARNING: Could not access cell W16 in {os.path.basename(pivot_path)}.")
+                print(f"\n[!] WARNING: Could not access cell W12 in {os.path.basename(pivot_path)}.")
                 print("    THE PREVIOUS AUM AND MOM GROWTH FIELDS WILL BE BLANK.")
                 print("    Please manually copy these values from last month's pivot table.")
 

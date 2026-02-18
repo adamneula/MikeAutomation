@@ -92,11 +92,11 @@ def Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, l
         money_yellow = workbook.add_format({'num_format': '$#,##0.00', 'bg_color': '#FFFF00'})
         
         # Type/Territory Formats
-        green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'})
+        green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'font': ''})
         purple_fmt = workbook.add_format({'bg_color': '#E1D5E7', 'font_color': '#400080'})
 
         # --- 1. Basic Setup ---
-        worksheet.autofilter(2, 0, 2 + len(df), len(df.columns) - 1)
+        worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
         worksheet.freeze_panes(1, 0)
 
         # --- 2. Static Column Highlights (M, P, V, AA, AB, AJ, AL in Yellow | W in Orange) ---
@@ -146,6 +146,7 @@ def Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, l
                                          {'type': 'formula', 'criteria': f'=$AN2="East"', 'format': green_fmt})
     
     print(f"SUCCESS: Detailed report with color-coding saved to {os.path.abspath(output_path)}")
+    return os.path.abspath(output_path)
 
 def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSheet):
     # --- 1. Initial Load ---

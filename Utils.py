@@ -36,3 +36,8 @@ def col_to_idx(col_letter):
             for c in col_letter:
                 num = num * 26 + (ord(c.upper()) - ord('A') + 1)
             return num - 1
+
+def input_with_default(prompt, default):
+    """Returns the default value if the user just presses Enter."""
+    user_input = input(f"{prompt} [{default}]: ").strip()
+    return user_input if user_input else default
