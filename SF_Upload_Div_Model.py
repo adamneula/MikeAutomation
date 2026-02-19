@@ -4,7 +4,7 @@ import os
 import Utils
 import Rep_Objects
 
-def SF_Upload_Div_Model(Primerica_Dir, Primerica_Sheet):
+def SF_Upload_Sheet(Primerica_Dir, Primerica_Sheet):
     '''
     Takes in the Primerica Div Model sheet made with the new and additions and outputs it in an SF dataloader-ready format
     
@@ -29,19 +29,31 @@ def SF_Upload_Div_Model(Primerica_Dir, Primerica_Sheet):
     dfOut['AE'] = dfIn['AE']
     #padding col
     #padding col
-    dfOut['Opportunity Name'] = ( 'Primerica UMA - ' + dfOut["Rep Name (FIT)"] + ' - Account#' + 
+    dfOut['Strategy'] = dfIn["ModelName"]
+    dfOut['Opportunity Name'] = ( dfOut["Strategy"] + ' - ' + dfOut["Rep Name (FIT)"] + ' - Account#' + 
             dfIn['accountid'].astype(str) + np.where(dfIn['Type'] == 'Addition', ' - Addition', ''))
     #Account Id to be left blank and pulled from SF
     dfOut['Close Date'] = (pd.Timestamp.now().to_period('M') - 1).end_time.strftime('%m/%d/%Y')
     dfOut['Amount'] = dfIn['Flow (MODE)'].round(2)
     dfOut['Stage'] = 'Closed / Won'
     dfOut['Lead Source'] = 'External Referral'
-    dfOut['Strategy'] = 'Model Dividend Income'
+    #Strategy defined earlier to be used in opportunity name
     dfOut['Custodian Account Number'] = dfIn['accountid']
-    dfOut['Quoted fee'] = 0.25
+    strategy_fees = {'Genter Capital Balanced Growth with GENT': 0.32, 'Genter Capital Balanced Growth with GENM': 0.32,
+                     'Genter Capital Balanced Income with GENT': 0.22, 'Genter Capital Balanced Income with GENM': 0.22,
+                     'Genter Capital Balanced with GENT': 0.30, 'Genter Capital Balanced with GENM': 0.30}
+    if Primerica_Sheet == 'Primerica Div Model': dfOut['Quoted fee'] = 0.25
+    else:
+        # Use lambda with axis=1 to look at the 'Strategy' column for each row
+        # .get(key, default) handles any strategies not in your dictionary
+        dfOut['Quoted fee'] = dfOut.apply(
+            lambda row: strategy_fees.get(row['Strategy'], 'Not Found'), 
+            axis=1
+        )
+        
     #Owner ID left blank to be filled in from SF data
     #Contact ID left blank to be filled in from SF data
     
-    fileName = Utils.get_unique_filename('Model_Div_For_SF.xlsx')
+    fileName = Utils.get_unique_filename(f'{Primerica_Sheet}_SF_Upload.xlsx')
     dfOut.to_excel(fileName, sheet_name='To Upload', index=False)
     print('Generated salesforce upload sheet')

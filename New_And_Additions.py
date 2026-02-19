@@ -216,8 +216,8 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
 
     # --- 4. Export & Formatting ---
     with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-        final_df.to_excel(writer, sheet_name="All Models", index=False)
-        workbook, worksheet = writer.book, writer.sheets["All Models"]
+        final_df.to_excel(writer, sheet_name="GENT and GENM", index=False)
+        workbook, worksheet = writer.book, writer.sheets["GENT and GENM"]
 
         # --- 1. THE FOUNDATION: Shared Font (No Borders) ---
         base_style = {'font_name': 'Aptos Narrow', 'font_size': 11, 'border': 0}
@@ -303,3 +303,4 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
         worksheet.autofilter(0, 0, last_row, len(final_df.columns) - 1)
 
     print(f"SUCCESS: Report saved at {os.path.abspath(output_path)}")
+    return os.path.abspath(output_path)

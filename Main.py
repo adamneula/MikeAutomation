@@ -44,12 +44,13 @@ def main():
             
             load_reps_from_xlsx(fitlist, fitlist_sheet)
             path = Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
-            SF_Upload_Div_Model(path, 'Primerica Div Model')
+            SF_Upload_Sheet(path, 'Primerica Div Model')
         elif choice == '3':
             lastMonthAccountSheet = input_with_default("Enter the name of the sheet on last month's Primerica table's file",  "Account-Rep Details")
             
             load_reps_from_xlsx(fitlist, fitlist_sheet)
-            GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+            path = GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+            SF_Upload_Sheet(path, 'All Models')
         elif choice == '4':
             prior_month_str = (pd.Timestamp.now() - pd.DateOffset(months=2)).strftime('%b %y')
             suggested_sheet = f"AUM Pivot - {prior_month_str}"
@@ -62,8 +63,9 @@ def main():
             load_previous_month_data(lastMonth, lastMonthTableSheet)
             export_to_pivot(fitlist, fitlist_sheet, thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
             path = Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
-            SF_Upload_Div_Model(path, 'Primerica Div Model')
-            GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+            SF_Upload_Sheet(path, 'Primerica Div Model')
+            path = GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+            SF_Upload_Sheet(path, 'GENT and GENM')
         else:
             print("Invalid selection. Please enter 1, 2, 3, 4, or Q.")
 
