@@ -82,68 +82,87 @@ def Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, l
         workbook = writer.book
         worksheet = writer.sheets[sheet_name]
         
-        # --- Define Formats ---
-        yellow_bg = workbook.add_format({'bg_color': '#FFFF00'})
-        orange_bg = workbook.add_format({'bg_color': '#FFC000'})
+        # --- 1. THE FOUNDATION: Shared Font (No Borders) ---
+        base_style = {'font_name': 'Aptos Narrow', 'font_size': 11, 'border': 0}
+
+        # --- 2. DEFINE FORMATS ---
+        header_fmt = workbook.add_format({**base_style, 'bold': True, 'bottom': 1, 'bg_color': '#D9D9D9', 'align': 'left'})
         
-        # Money/Percent with Yellow/Orange overrides
-        money_fmt = workbook.add_format({'num_format': '$#,##0.00'})
-        percent_fmt = workbook.add_format({'num_format': '0.00%'})
-        money_yellow = workbook.add_format({'num_format': '$#,##0.00', 'bg_color': '#FFFF00'})
+        # Data Formats
+        default_fmt = workbook.add_format(base_style)
+        yellow_bg = workbook.add_format({**base_style, 'bg_color': '#FFFF00'})
         
-        # Type/Territory Formats
-        green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'font': ''})
-        purple_fmt = workbook.add_format({'bg_color': '#E1D5E7', 'font_color': '#400080'})
+        # Numeric formats
+        money_fmt = workbook.add_format({**base_style, 'num_format': '$#,##0.00'})
+        money_yellow = workbook.add_format({**base_style, 'num_format': '$#,##0.00', 'bg_color': '#FFFF00'})
+        percent_fmt = workbook.add_format({**base_style, 'num_format': '0.00%'})
+        
+        # Conditional formats (Regional/Type)
+        green_fmt = workbook.add_format({**base_style, 'bg_color': '#C6EFCE', 'font_color': '#006100'})
+        purple_fmt = workbook.add_format({**base_style, 'bg_color': '#E1D5E7', 'font_color': '#400080'})
 
-        # --- 1. Basic Setup ---
-        worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
-        worksheet.freeze_panes(1, 0)
+        # --- 3. APPLY BOLD HEADERS ---
+        for col_num, value in enumerate(df.columns.values):
+            worksheet.write(0, col_num, value, header_fmt)
 
-        # --- 2. Static Column Highlights (M, P, V, AA, AB, AJ, AL in Yellow | W in Orange) ---
-        # Map Excel letters to 0-based indices for the loop
-        yellow_cols = ['M', 'P', 'V', 'AA', 'AB', 'AJ', 'AL']
-        orange_cols = ['W']
-
-        yellow_indices = [col_to_idx(c) for c in yellow_cols]
-        orange_indices = [col_to_idx(c) for c in orange_cols]
-
-        # --- 3. The Main Formatting Loop ---
+        # --- 4. YELLOW TARGETS ---
+        yellow_target_cols = [
+            'ModelCode', 'accountid', 'Total Assets', 'Rep Name', 
+            'Rep City', 'Rep State', 'Flow (MODE)', 'AE', 'Territory'
+        ]
+        
         for i, col in enumerate(df.columns):
-            max_len = max(df[col].fillna('').astype(str).map(len).max(), len(str(col))) + 2
-            max_len = min(max_len, 50)
+            # Safe width calculation using .str.len()
+            max_val_len = df[col].astype(str).str.len().max()
+            max_len = min(max(max_val_len, len(str(col))) + 2, 40)
             
-            # Determine Base Format
-            fmt = None
-            if i in yellow_indices:
-                fmt = money_yellow if any(x in col for x in ['Assets', 'Change', 'Flow (MODE)']) else yellow_bg
-            elif i in orange_indices:
-                fmt = orange_bg
-            elif any(x in col for x in ['$ Change', 'Assets', 'Flow (MODE)']):
+            # Formatting Decision
+            if col in yellow_target_cols:
+                fmt = money_yellow if any(x in col for x in ['Assets', 'Flow (MODE)']) else yellow_bg
+            elif any(x in col for x in ['Change', 'Assets', 'Flow (MODE)']):
                 fmt = money_fmt
-            elif any(x in col for x in ['% Change', 'Mode.Sngl']):
+            elif any(x in col for x in ['Change', 'Mode']):
                 fmt = percent_fmt
-            
+            else:
+                fmt = default_fmt 
+
             worksheet.set_column(i, i, max_len, fmt)
 
-        # --- 4. Conditional Formatting (Type & Territory) ---
+        # --- 5. CONDITIONAL FORMATTING (Regional Sync) ---
         last_row = len(df)
         Type_idx = df.columns.get_loc('Type')
         ae_idx = df.columns.get_loc('AE')
         terr_idx = df.columns.get_loc('Territory')
+        
+        # Find Excel Column Letter (e.g., 'AN') for the Territory column
+        def get_excel_letter(n):
+            res = ""
+            while n >= 0:
+                res = chr(n % 26 + 65) + res
+                n = n // 26 - 1
+            return res
+        
+        t_letter = get_excel_letter(terr_idx)
 
-        # Type: Open (Green) & Addition (Purple)
+        # Type rules
         worksheet.conditional_format(1, Type_idx, last_row, Type_idx, 
                                      {'type': 'cell', 'criteria': 'equal to', 'value': '"Open"', 'format': green_fmt})
         worksheet.conditional_format(1, Type_idx, last_row, Type_idx, 
                                      {'type': 'cell', 'criteria': 'equal to', 'value': '"Addition"', 'format': purple_fmt})
 
-        # Territory: West (Purple) & East (Green)
-        # We apply this to both the AE and Territory columns
+        # Regional rules: Applying to AE and Territory based on Territory value
         for idx in [ae_idx, terr_idx]:
             worksheet.conditional_format(1, idx, last_row, idx, 
-                                         {'type': 'formula', 'criteria': f'=$AN2="West"', 'format': purple_fmt})
+                                         {'type': 'formula', 
+                                          'criteria': f'=${t_letter}2="West"', 
+                                          'format': purple_fmt})
             worksheet.conditional_format(1, idx, last_row, idx, 
-                                         {'type': 'formula', 'criteria': f'=$AN2="East"', 'format': green_fmt})
+                                         {'type': 'formula', 
+                                          'criteria': f'=${t_letter}2="East"', 
+                                          'format': green_fmt})
+
+        worksheet.freeze_panes(1, 0)
+        worksheet.autofilter(0, 0, last_row, len(df.columns) - 1)
     
     print(f"SUCCESS: Detailed report with color-coding saved to {os.path.abspath(output_path)}")
     return os.path.abspath(output_path)
