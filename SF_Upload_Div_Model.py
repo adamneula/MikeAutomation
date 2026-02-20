@@ -54,6 +54,6 @@ def SF_Upload_Sheet(Primerica_Dir, Primerica_Sheet):
     #Owner ID left blank to be filled in from SF data
     #Contact ID left blank to be filled in from SF data
     
-    fileName = Utils.get_unique_filename(f'{Primerica_Sheet}_SF_Upload.xlsx')
+    fileName = Utils.get_unique_filename(f'{Primerica_Sheet}_SF_Upload_{(pd.Timestamp.now() - pd.DateOffset(months=1)).strftime('%m-%Y')}.xlsx')
     dfOut.to_excel(fileName, sheet_name='To Upload', index=False)
     print('Generated salesforce upload sheet')
