@@ -231,7 +231,7 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
         return
 
     final_df = pd.concat(all_model_dfs, ignore_index=True)
-    output_path = get_unique_filename(f'Consolidated_Models_{datetime.now().strftime("%b_%Y")}.xlsx')
+    output_path = get_unique_filename(f'{thisMonth[:-5]} - GENT + GENM New and Additions.xlsx')
 
     # --- 4. Export & Formatting ---
     with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
