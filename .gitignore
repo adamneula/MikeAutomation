@@ -12,3 +12,7 @@
 
 # Ignore environment variables
 *.env
+
+# Ignore pycache
+*.pyc
+__pycache__/
