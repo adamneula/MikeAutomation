@@ -86,7 +86,16 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
 def load_previous_month_data(prev_month_file, prev_month_sheet):
     try:
         df_prev = load_dynamic_df(prev_month_file, prev_month_sheet, 'Primary Rep ID')
+        
+        # 1. Strip the columns
         df_prev.columns = df_prev.columns.str.strip()
+
+        # 2. De-duplicate column names (adds .1, .2, etc., to repeats)
+        cols = pd.Series(df_prev.columns)
+        for dupe in cols[cols.duplicated()].unique(): 
+            cols[cols == dupe] = [f"{dupe}_{i}" if i != 0 else dupe for i in range((cols == dupe).sum())]
+        df_prev.columns = cols
+
     except Exception as e:
         print(f"Error loading {prev_month_file}: {e}")
         return

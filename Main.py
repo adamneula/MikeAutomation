@@ -50,7 +50,7 @@ def main():
         lastMonth = input_with_default("Enter FULL PATH of last month's pivot table excel file", lastMonth_default).strip().replace('"', '')
         
         if choice == '1':
-            prior_month_str = (pd.Timestamp.now() - pd.DateOffset(months=1)).strftime('%b %y')
+            prior_month_str = (pd.Timestamp.now() - pd.DateOffset(months=2)).strftime('%b %y')
             suggested_sheet = f"AUM Pivot - {prior_month_str}"
             
             lastMonthTableSheet = input_with_default('Enter the name of the pivot table sheet', suggested_sheet)
