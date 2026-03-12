@@ -119,10 +119,10 @@ def Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, l
             # Formatting Decision
             if col in yellow_target_cols:
                 fmt = money_yellow if any(x in col for x in ['Assets', 'Flow (MODE)']) else yellow_bg
+            elif '%' in col or 'Mode' in col:
+                fmt = percent_fmt
             elif any(x in col for x in ['Change', 'Assets', 'Flow (MODE)']):
                 fmt = money_fmt
-            elif any(x in col for x in ['Change', 'Mode']):
-                fmt = percent_fmt
             else:
                 fmt = default_fmt 
 
@@ -275,10 +275,10 @@ def GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthSh
             # Formatting Decision
             if col in yellow_target_cols:
                 fmt = money_yellow if any(x in col for x in ['Assets', 'Flow (MODE)']) else yellow_bg
+            elif '%' in col or 'Mode' in col:
+                fmt = percent_fmt
             elif any(x in col for x in ['Change', 'Assets', 'Flow (MODE)']):
                 fmt = money_fmt
-            elif any(x in col for x in ['Change', 'Mode']):
-                fmt = percent_fmt
             else:
                 fmt = default_fmt 
 
