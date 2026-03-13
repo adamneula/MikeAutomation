@@ -54,16 +54,20 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
     for _, row in df.iterrows():
         first_name = str(row['First']).strip()
         last_name = str(row['Last']).strip()
-        if first_name.lower() == 'christophe': first_name = 'CHRISTOPHER'
-        elif first_name.lower() == 'theodore' and last_name.lower() == 'lund': first_name = 'TED'
-        elif first_name.lower() == 'danny' and last_name.lower() == 'creswell': first_name = 'DANIEL'
+        if first_name.lower() == 'christophe':
+            first_name = 'CHRISTOPHER'
+        elif first_name.lower() == 'theodore' and last_name.lower() == 'lund': 
+            first_name = 'TED'
+        elif first_name.lower() == 'danny' and last_name.lower() == 'creswell': 
+            first_name = 'DANIEL'
         full_name = f"{first_name} {last_name}"
         clean_ID = str(row['ID']).replace(' ', '').strip()        
         IDtoName[clean_ID] = full_name.lower()
         
         total = float(row['LifeTime'])
         if full_name.lower() in reps:
-            if reps[full_name.lower()].Lifetime_Total > total: continue
+            if reps[full_name.lower()].Lifetime_Total > total:
+                continue
         state = str(row['State']).strip()
         email = str(row['Pol Email']).strip()
         territory = str(row['Territory']).strip()
@@ -75,8 +79,10 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
         if territory.lower() == 'central':
             territory = 'East' 
             AE = 'Rob Hunt'
-        elif territory == 'East': AE = 'Rob Hunt'
-        elif territory == 'West': AE = 'MeiWah Wong'
+        elif territory == 'East':
+            AE = 'Rob Hunt'
+        elif territory == 'West':
+            AE = 'MeiWah Wong'
         reps[full_name.lower()] = Representatives(full_name, clean_ID, state, email, AE, territory, total)
         
 def rep_lookup(input_str) -> Representatives:

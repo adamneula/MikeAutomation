@@ -1,5 +1,7 @@
-from Utils import *
-from Rep_Objects import *
+from Utils import load_dynamic_df, get_unique_filename
+import os
+import pandas as pd
+from Rep_Objects import IDtoName, Representatives, rep_lookup, reps
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
@@ -14,34 +16,49 @@ def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
     
     for index, row in df.iterrows():
         clean_Name = str(row['Rep Name']).strip()
-        if clean_Name == 'nan': continue
+        if clean_Name == 'nan':
+            continue
         elif clean_Name.lower().split()[0] == 'christophe':
             clean_Name = " ".join(['CHRISTOPHER'] + clean_Name.upper().split()[1:])
-        elif clean_Name.lower() == 'danny creswell': clean_Name = 'DANIEL CRESWELL'
+        elif clean_Name.lower() == 'danny creswell':
+            clean_Name = 'DANIEL CRESWELL'
         
         if clean_Name.lower() in reps:
             reps[clean_Name.lower()].add_account(row['Total Assets'])
-            if reps[clean_Name.lower()].Territory == 'East': eastBalance += row['Total Assets']
-            else: westBalance += row['Total Assets']
+            if reps[clean_Name.lower()].Territory == 'East': 
+                eastBalance += row['Total Assets']
+            else:
+                westBalance += row['Total Assets']
         elif clean_Name[:5] in IDtoName:
             reps[IDtoName[clean_Name[:5]]].add_account(row['Total Assets'])
-            if reps[IDtoName[clean_Name[:5]]].Territory == 'East': eastBalance += row['Total Assets']
-            else: westBalance += row['Total Assets']
+            if reps[IDtoName[clean_Name[:5]]].Territory == 'East': 
+                eastBalance += row['Total Assets']
+            else: 
+                westBalance += row['Total Assets']
 
         elif clean_Name.replace(' ', '') in IDtoName:
             reps[IDtoName[clean_Name.replace(' ', '')]].add_account(row['Total Assets'])
-            if reps[IDtoName[clean_Name.replace(' ', '')]].Territory == 'East': eastBalance += row['Total Assets']
-            else: westBalance += row['Total Assets']
+            if reps[IDtoName[clean_Name.replace(' ', '')]].Territory == 'East':
+                eastBalance += row['Total Assets']
+            else: 
+                westBalance += row['Total Assets']
 
     for rep in reps:
         #assign ranking
-        if reps[rep].Sum_of_Total_Assets == 0: continue
-        elif reps[rep].Sum_of_Total_Assets < 250000: reps[rep].Ranking = 'C'
-        elif reps[rep].Sum_of_Total_Assets < 1000000: reps[rep].Ranking = 'B'
-        elif reps[rep].Sum_of_Total_Assets < 2000000: reps[rep].Ranking = 'BB'
-        elif reps[rep].Sum_of_Total_Assets < 5000000: reps[rep].Ranking = 'A'
-        elif reps[rep].Sum_of_Total_Assets < 10000000: reps[rep].Ranking = 'AA'
-        else: reps[rep].Ranking = 'AAA'
+        if reps[rep].Sum_of_Total_Assets == 0: 
+            continue
+        elif reps[rep].Sum_of_Total_Assets < 250000: 
+            reps[rep].Ranking = 'C'
+        elif reps[rep].Sum_of_Total_Assets < 1000000:
+            reps[rep].Ranking = 'B'
+        elif reps[rep].Sum_of_Total_Assets < 2000000:
+            reps[rep].Ranking = 'BB'
+        elif reps[rep].Sum_of_Total_Assets < 5000000:
+            reps[rep].Ranking = 'A'
+        elif reps[rep].Sum_of_Total_Assets < 10000000: 
+            reps[rep].Ranking = 'AA'
+        else: 
+            reps[rep].Ranking = 'AAA'
         
 def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
     global reps
@@ -58,16 +75,20 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
     for _, row in df.iterrows():
         first_name = str(row['First']).strip()
         last_name = str(row['Last']).strip()
-        if first_name.lower() == 'christophe': first_name = 'CHRISTOPHER'
-        elif first_name.lower() == 'theodore' and last_name.lower() == 'lund': first_name = 'TED'
-        elif first_name.lower() == 'danny' and last_name.lower() == 'creswell': first_name = 'DANIEL'
+        if first_name.lower() == 'christophe':
+            first_name = 'CHRISTOPHER'
+        elif first_name.lower() == 'theodore' and last_name.lower() == 'lund':
+            first_name = 'TED'
+        elif first_name.lower() == 'danny' and last_name.lower() == 'creswell':
+            first_name = 'DANIEL'
         full_name = f"{first_name} {last_name}"
         clean_ID = str(row['ID']).replace(' ', '').strip()        
         IDtoName[clean_ID] = full_name.lower()
         
         total = float(row['LifeTime'])
         if full_name.lower() in reps:
-            if reps[full_name.lower()].Lifetime_Total > total: continue
+            if reps[full_name.lower()].Lifetime_Total > total:
+                continue
         state = str(row['State']).strip()
         email = str(row['Pol Email']).strip()
         territory = str(row['Territory']).strip()
@@ -79,8 +100,10 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
         if territory.lower() == 'central':
             territory = 'East' 
             AE = 'Rob Hunt'
-        elif territory == 'East': AE = 'Rob Hunt'
-        elif territory == 'West': AE = 'MeiWah Wong'
+        elif territory == 'East': 
+            AE = 'Rob Hunt'
+        elif territory == 'West':
+            AE = 'MeiWah Wong'
         reps[full_name.lower()] = Representatives(full_name, clean_ID, state, email, AE, territory, total)
              
 def load_previous_month_data(prev_month_file, prev_month_sheet):
@@ -103,7 +126,8 @@ def load_previous_month_data(prev_month_file, prev_month_sheet):
     for _, row in df_prev.iterrows():
         # 1. Look up the user's ID and clean it
         raw_id = str(row['Primary Rep ID']).replace(' ', '').strip().upper()
-        if raw_id == 'NAN': continue
+        if raw_id == 'NAN': 
+            continue
         
         # 2. Find the proper name from the ID lookup list
         proper_name_lower = IDtoName.get(raw_id)
@@ -123,7 +147,7 @@ def load_previous_month_data(prev_month_file, prev_month_sheet):
             else:
                 advisor.MoM_Change = 0.0
                            
-def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet='', pivot_path='', pivot_sheet=''):
+def export_to_pivot(details_path='', details_sheet='', pivot_path='', pivot_sheet=''):
     global reps, eastBalance, westBalance
     data = []
     sorted_reps = sorted(reps.values(), key=lambda x: x.Advisor_Name)
@@ -191,7 +215,7 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
                 
                 details_ws.autofilter(0, 0, len(df_details), len(df_details.columns) - 1)
                 
-            except:
+            except Exception as e:
                 print(f"\\ACCOUNT-REP DETAIL TAB ERROR: {e}")
                 
             try:
@@ -255,15 +279,8 @@ def export_to_pivot(fit_path='', fit_sheet='', details_path='', details_sheet=''
 
             except Exception as e:
                 print(f"\nPRIMMY DATA SHEET ERROR: {e}")
-            
-           
-            rank_colors = {
-                'AAA': '#4FAD5B', 'AA': '#9FCE63', 'A': '#DFF1D3',
-                'BB': '#79ADEA', 'B': '#ADC8E9', 'C': '#FFFF54'
-            }
 
             num_rows = len(df_output)
-            num_cols = len(df_output.columns)
             
             df_output.to_excel(writer, sheet_name=f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}', index=False, startrow=3, header=False)
             worksheet = writer.sheets[f'AUM Pivot - {(datetime.now() - relativedelta(months=1)).strftime("%b %y")}']    

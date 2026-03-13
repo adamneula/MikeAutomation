@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import os
 import Utils
 import Rep_Objects
 
@@ -42,7 +41,8 @@ def SF_Upload_Sheet(Primerica_Dir, Primerica_Sheet):
     strategy_fees = {'Genter Capital Balanced Growth with GENT': 0.32, 'Genter Capital Balanced Growth with GENM': 0.32,
                      'Genter Capital Balanced Income with GENT': 0.22, 'Genter Capital Balanced Income with GENM': 0.22,
                      'Genter Capital Balanced with GENT': 0.30, 'Genter Capital Balanced with GENM': 0.30}
-    if Primerica_Sheet == 'Primerica Div Model': dfOut['Quoted fee'] = 0.25
+    if Primerica_Sheet == 'Primerica Div Model': 
+        dfOut['Quoted fee'] = 0.25
     else:
         # Use lambda with axis=1 to look at the 'Strategy' column for each row
         # .get(key, default) handles any strategies not in your dictionary

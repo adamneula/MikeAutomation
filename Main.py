@@ -1,9 +1,9 @@
-from tqdm import tqdm
-tqdm.pandas()
-from Rep_Objects import *
-from Pivot_Table import *
-from New_And_Additions import *
-from SF_Upload_Div_Model import *
+from Rep_Objects import load_reps_from_xlsx
+from Pivot_Table import attribute_accounts, export_to_pivot, load_previous_month_data
+from New_And_Additions import GenT_GenM_New_And_Addition, Primerica_Div_Model_New_And_Addition
+from SF_Upload_Div_Model import SF_Upload_Sheet
+from Utils import input_with_default
+import pandas as pd
 import os
 
 def main():
@@ -58,7 +58,7 @@ def main():
             load_reps_from_xlsx(fitlist, fitlist_sheet)
             attribute_accounts(thisMonth, thisMonthSheet)
             load_previous_month_data(lastMonth, lastMonthTableSheet)
-            export_to_pivot(fitlist, fitlist_sheet, thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
+            export_to_pivot(thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
         elif choice == '2':
             lastMonthAccountSheet = input_with_default("Enter the name of the sheet on last month's Primerica table's file",  "Account-Rep Details")
             
@@ -81,7 +81,7 @@ def main():
             load_reps_from_xlsx(fitlist, fitlist_sheet)
             attribute_accounts(thisMonth, thisMonthSheet)
             load_previous_month_data(lastMonth, lastMonthTableSheet)
-            export_to_pivot(fitlist, fitlist_sheet, thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
+            export_to_pivot(thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
             path = Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
             SF_Upload_Sheet(path, 'Primerica Div Model')
             path = GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
