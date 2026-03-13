@@ -10,7 +10,9 @@ westBalance = 0
 
 def attribute_accounts(Primerica_Dir, Primerica_Sheet_Name):
     global eastBalance, westBalance
-
+    
+    eastBalance = westBalance = 0
+    
     df = load_dynamic_df(Primerica_Dir, Primerica_Sheet_Name, 'Rep Name')
     df.columns = df.columns.str.strip()
     
