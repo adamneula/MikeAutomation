@@ -110,44 +110,75 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
              
 def load_previous_month_data(prev_month_file, prev_month_sheet):
     try:
+        # We don't care about trailing spaces here because we use .iloc later!
+        # Just use whatever primary ID string your dynamic_df loader needs to find the table.
         df_prev = load_dynamic_df(prev_month_file, prev_month_sheet, 'Primary Rep ID')
-        
-        # 1. Strip the columns
-        df_prev.columns = df_prev.columns.str.strip()
-
-        # 2. De-duplicate column names (adds .1, .2, etc., to repeats)
-        cols = pd.Series(df_prev.columns)
-        for dupe in cols[cols.duplicated()].unique(): 
-            cols[cols == dupe] = [f"{dupe}_{i}" if i != 0 else dupe for i in range((cols == dupe).sum())]
-        df_prev.columns = cols
-
     except Exception as e:
         print(f"Error loading {prev_month_file}: {e}")
         return
+    
+    # 1. Catalog previous month's data into lookups
+    name_state_aum = {}
+    id_aum = {}
 
     for _, row in df_prev.iterrows():
-        # 1. Look up the user's ID and clean it
-        raw_id = str(row['Primary Rep ID']).replace(' ', '').strip().upper()
-        if raw_id == 'NAN': 
+        # --- STRICTLY USE RIGHT SIDE COLUMNS VIA INDEX POSITIONS ---
+        # This completely ignores column names (and your trailing spaces), 
+        # making it immune to KeyErrors, typos, and Excel sorting mismatches!
+        try:
+            raw_name = str(row.iloc[8]).strip().lower()  # Index 8 = Col I (Advisor Name)
+            raw_state = str(row.iloc[9]).strip().upper() # Index 9 = Col J (True State)
+            raw_id = str(row.iloc[13]).replace(' ', '').strip().upper() # Index 13 = Col N (Rep ID)
+            prev_bal_raw = row.iloc[15] # Index 15 = Col P (Sum of Total Assets)
+        except IndexError:
             continue
+
+        if raw_name == 'nan':
+            raw_name = ""
+        if raw_state == 'nan':
+            raw_state = ""
+        if raw_id == 'nan': 
+            raw_id = ""
+
+        # Safely extract the balance
+        prev_bal = pd.to_numeric(prev_bal_raw, errors='coerce')
+        if pd.isna(prev_bal) or prev_bal == 0:
+            continue
+
+        # Aggregate by Name + State
+        if raw_name and raw_state:
+            key = (raw_name, raw_state)
+            name_state_aum[key] = name_state_aum.get(key, 0.0) + prev_bal
         
-        # 2. Find the proper name from the ID lookup list
-        proper_name_lower = IDtoName.get(raw_id)
+        # Aggregate by ID
+        if raw_id and raw_id != 'NAN':
+            id_aum[raw_id] = id_aum.get(raw_id, 0.0) + prev_bal
+
+    # 2. Assign AUM to current reps using strict priority
+    for rep_name_key, advisor in reps.items():
+        adv_state = getattr(advisor, 'True_State', '').strip().upper()
+        adv_id = getattr(advisor, 'Primary_Rep_ID', '').strip().upper()
         
-        # 3. Use that name to go into the advisor object and add attributes
-        if proper_name_lower and proper_name_lower in reps:
-            advisor = reps[proper_name_lower]
+        match_key = (rep_name_key, adv_state)
+        
+        # PRIORITY 1: Try to match by Name + State
+        if match_key in name_state_aum:
+            advisor.Previous_Month_AUM = name_state_aum[match_key]
             
-            # Fill the instance variables
-            prev_bal = float(row['Sum of Total Assets']) if pd.notna(row['Sum of Total Assets']) else 0.0
-            advisor.Previous_Month_AUM = prev_bal
+        # PRIORITY 2: ONLY fallback to ID if Name + State completely failed
+        elif adv_id in id_aum:
+            advisor.Previous_Month_AUM = id_aum[adv_id]
             
-            # Calculate changes automatically
-            advisor.Dollar_Val_Change = advisor.Sum_of_Total_Assets - prev_bal
-            if prev_bal > 0:
-                advisor.MoM_Change = advisor.Dollar_Val_Change / prev_bal
-            else:
-                advisor.MoM_Change = 0.0
+        # No match found
+        else:
+            advisor.Previous_Month_AUM = 0.0
+
+        # 3. Recalculate metrics
+        advisor.Dollar_Val_Change = advisor.Sum_of_Total_Assets - advisor.Previous_Month_AUM
+        if advisor.Previous_Month_AUM > 0:
+            advisor.MoM_Change = advisor.Dollar_Val_Change / advisor.Previous_Month_AUM
+        else:
+            advisor.MoM_Change = 0.0
                            
 def export_to_pivot(details_path='', details_sheet='', pivot_path='', pivot_sheet=''):
     global reps, eastBalance, westBalance
@@ -158,25 +189,26 @@ def export_to_pivot(details_path='', details_sheet='', pivot_path='', pivot_shee
         if r.Sum_of_Total_Assets == 0 and (r.Previous_Month_AUM is None or r.Previous_Month_AUM == 0):
             continue
             
+        #NOTE: ALL RIGHT GROUP TABS WILL HAVE A TRAILING SPACE IN ORDER TO DIFFERENTIATE THEM
         row_data = {
             'Row Labels': r.Advisor_Name.upper(),
             'Primary Rep ID': r.Primary_Rep_ID,
             'True State': r.True_State,
             'AE': r.AE,
             'Territory': r.Territory,
-            'Sum of Total Assets ': r.Sum_of_Total_Assets,
+            'Sum of Total Assets': r.Sum_of_Total_Assets,
             'Spacer_1': '', 'Spacer_2': '',
-            'Advisor Name': r.Advisor_Name.upper(),
+            'Advisor Name ': r.Advisor_Name.upper(),
             'True State ': r.True_State,
             'AE ': r.AE,
             'Territory ': r.Territory,
-            'Email': r.Email,
+            'Email ': r.Email,
             'Primary Rep ID ': r.Primary_Rep_ID,
             'Ranking ': r.Ranking,
-            'Sum of Total Assets .1': r.Sum_of_Total_Assets,
-            'Previous Month AUM': r.Previous_Month_AUM,
-            'MoM Change': r.MoM_Change,
-            'Dollar Val Change': r.Dollar_Val_Change
+            'Sum of Total Assets ': r.Sum_of_Total_Assets,
+            'Previous Month AUM ': r.Previous_Month_AUM,
+            'MoM Change ': r.MoM_Change,
+            'Dollar Val Change ': r.Dollar_Val_Change
         }
         data.append(row_data)
 
@@ -423,9 +455,9 @@ def apply_excel_highlighting(workbook, worksheet, df):
     # 3. Identify column indices safely
     try:
         rank_col_idx = df.columns.get_loc('Ranking ')
-        assets_col_idx = df.columns.get_loc('Sum of Total Assets ')
-        assets1_col_idx = df.columns.get_loc('Sum of Total Assets .1')
-        mom_change_idx = df.columns.get_loc('MoM Change')
+        assets_col_idx = df.columns.get_loc('Sum of Total Assets')
+        assets1_col_idx = df.columns.get_loc('Sum of Total Assets ')
+        mom_change_idx = df.columns.get_loc('MoM Change ')
     except KeyError as e:
         print(f"Warning: Could not find column {e} for highlighting.")
         return
@@ -442,12 +474,12 @@ def apply_excel_highlighting(workbook, worksheet, df):
             worksheet.write(excel_row, rank_col_idx, rank_val, rank_formats[rank_val]['text'])
             
             # Highlight both Asset columns with the same rank color
-            asset_val = df.iloc[row_num]['Sum of Total Assets .1']
+            asset_val = df.iloc[row_num]['Sum of Total Assets ']
             worksheet.write(excel_row, assets_col_idx, asset_val, rank_formats[rank_val]['money'])
             worksheet.write(excel_row, assets1_col_idx, asset_val, rank_formats[rank_val]['money'])
         
         # --- Handle MoM Change Highlighting ---
-        mom_change_val = df.iloc[row_num]['MoM Change']
+        mom_change_val = df.iloc[row_num]['MoM Change ']
         
         # Check if it's a number and not NaN
         if pd.notna(mom_change_val):
