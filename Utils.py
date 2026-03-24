@@ -41,3 +41,9 @@ def input_with_default(prompt, default):
     """Returns the default value if the user just presses Enter."""
     user_input = input(f"{prompt} [{default}]: ").strip()
     return user_input if user_input else default
+
+def clean_numeric_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    df = df.copy()
+    df[cols] = df[cols].astype(str).replace(r'[$,]', '', regex=True)
+    df[cols] = df[cols].apply(pd.to_numeric, errors='coerce').fillna(0)
+    return df

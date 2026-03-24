@@ -25,7 +25,7 @@ def Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, l
     df_prev_raw = pd.read_excel(lastMonth, sheet_name=lastMonthSheet)
     df_prev_raw.columns = df_prev_raw.columns.str.strip()
     
-    # Standardize IDs and Names for both DataFrames to ensure the join works
+    # XComposite key not needed since this is only one model
     def create_comp_key(dataframe):
         ids = dataframe['accountid'].astype(str).str.strip()
         models = dataframe['ModelName'].astype(str).str.strip()
