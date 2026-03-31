@@ -5,7 +5,7 @@ from Rep_Objects import rep_lookup
 from Utils import get_unique_filename, clean_numeric_columns
 import Rep_Objects
 
-def New_And_Addition(thisMonth: str, thisMonthSheet: str, lastMonth: str, lastMonthSheet: str, models: str | list[str]):
+def New_And_Addition(thisMonth: str, thisMonthSheet: str, lastMonth: str, lastMonthSheet: str, models: str | list[str], sheet_name: str) -> str:
     '''
     Generates augmented version of Account-Rep details with information about the account's balance last month
     information about the advisor, and whether the account is an Open or an Addition
@@ -98,10 +98,9 @@ def New_And_Addition(thisMonth: str, thisMonthSheet: str, lastMonth: str, lastMo
     #Handle output and format it right
     base_dir = os.path.dirname(os.path.abspath(__file__))
     clean_name = os.path.splitext(os.path.basename(thisMonth))[0]
-    output_path = get_unique_filename(os.path.join(base_dir, f'{clean_name} - New and Additions.xlsx'))
+    output_path = get_unique_filename(os.path.join(base_dir, f'{clean_name} - New and Additions ({sheet_name}).xlsx'))
     
     with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-        sheet_name = "Primerica Div Model"
         df_final.to_excel(writer, sheet_name=sheet_name, index=False)
         
         workbook = writer.book
@@ -173,16 +172,3 @@ def New_And_Addition(thisMonth: str, thisMonthSheet: str, lastMonth: str, lastMo
     
     print(f"SUCCESS: Report saved to {os.path.abspath(output_path)}")
     return os.path.abspath(output_path)
-
-Rep_Objects.load_reps_from_xlsx(r'H:\_INSTITUTIONAL DIVISION\INTERN FOLDER\Adam Neulander\MikeAutomation\2-26.xlsx', 'FIT')
-New_And_Addition(r'H:\_INSTITUTIONAL DIVISION\INTERN FOLDER\Adam Neulander\MikeAutomation\ModelProvider_AUM_RNC_FEB2026_Pivot.xlsx',
-                 'Account-Rep Details',
-                 r'H:\_INSTITUTIONAL DIVISION\INTERN FOLDER\Adam Neulander\MikeAutomation\ModelProvider_AUM_RNC_JAN2026_Pivot.xlsx',
-                 'Account-Rep Details',
-                 ['Genter Capital Balanced Growth with GENM',
-                  'Genter Capital Balanced Growth with GENT',
-                  'Genter Capital Balanced Income with GENM',
-                  'Genter Capital Balanced Income with GENT',
-                  'Genter Capital Balanced with GENM',
-                  'Genter Capital Balanced with GENT'])
-

@@ -1,10 +1,18 @@
 from Rep_Objects import load_reps_from_xlsx
 from Pivot_Table import attribute_accounts, export_to_pivot, load_previous_month_data
 from New_And_Additions import GenT_GenM_New_And_Addition, Primerica_Div_Model_New_And_Addition
+from New_New_And_Additions import New_And_Addition
 from SF_Upload_Div_Model import SF_Upload_Sheet
 from Utils import input_with_default
 import pandas as pd
 import os
+
+GentGenmModels = ['Genter Capital Balanced Growth with GENM',
+                  'Genter Capital Balanced Growth with GENT',
+                  'Genter Capital Balanced Income with GENM',
+                  'Genter Capital Balanced Income with GENT',
+                  'Genter Capital Balanced with GENM',
+                  'Genter Capital Balanced with GENT']
 
 def main():
     while True:
@@ -63,13 +71,13 @@ def main():
             lastMonthAccountSheet = input_with_default("Enter the name of the sheet on last month's Primerica table's file",  "Account-Rep Details")
             
             load_reps_from_xlsx(fitlist, fitlist_sheet)
-            path = Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+            path = New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet, 'Genter Capital Dividend Income Model', 'Primerica Div Model')
             SF_Upload_Sheet(path, 'Primerica Div Model')
         elif choice == '3':
             lastMonthAccountSheet = input_with_default("Enter the name of the sheet on last month's Primerica table's file",  "Account-Rep Details")
             
             load_reps_from_xlsx(fitlist, fitlist_sheet)
-            path = GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+            path = New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet, GentGenmModels, 'GENT and GENM')
             SF_Upload_Sheet(path, 'GENT and GENM')
         elif choice == '4':
             prior_month_str = (pd.Timestamp.now() - pd.DateOffset(months=2)).strftime('%b %y')
@@ -82,9 +90,9 @@ def main():
             attribute_accounts(thisMonth, thisMonthSheet)
             load_previous_month_data(lastMonth, lastMonthTableSheet)
             export_to_pivot(thisMonth, thisMonthSheet, lastMonth, lastMonthTableSheet)
-            path = Primerica_Div_Model_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+            path = New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet, 'Genter Capital Dividend Income Model', 'Primerica Div Model')
             SF_Upload_Sheet(path, 'Primerica Div Model')
-            path = GenT_GenM_New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet)
+            path = New_And_Addition(thisMonth, thisMonthSheet, lastMonth, lastMonthAccountSheet, GentGenmModels, 'GENT and GENM')
             SF_Upload_Sheet(path, 'GENT and GENM')
         else:
             print("Invalid selection. Please enter 1, 2, 3, 4, or Q.")
