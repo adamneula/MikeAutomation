@@ -29,7 +29,7 @@ def SF_Upload_Sheet(Primerica_Dir, Primerica_Sheet):
     #padding col
     #padding col
     dfOut['Strategy'] = dfIn["ModelName"]
-    dfOut['Opportunity Name'] = ( dfOut["Strategy"] + ' - ' + dfOut["Rep Name (FIT)"] + ' - Account#' + 
+    dfOut['Opportunity Name'] = ('Primerica UMA - ' + dfOut['Rep Name (FIT)'] + ' - Account#' + 
             dfIn['accountid'].astype(str) + np.where(dfIn['Type'] == 'Addition', ' - Addition', ''))
     #Account Id to be left blank and pulled from SF
     dfOut['Close Date'] = (pd.Timestamp.now().to_period('M') - 1).end_time.strftime('%m/%d/%Y')
