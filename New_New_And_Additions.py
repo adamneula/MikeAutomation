@@ -70,10 +70,10 @@ def New_And_Addition(thisMonth: str, thisMonthSheet: str, lastMonth: str, lastMo
     is_new_to_firm = ~df_final['accountid'].isin(df_last['accountid'])
     conditions = [
         # A: Truly Brand New (Not in last month's file at all)
-        (df_final['Flow (MODE)'] >= threshold) & (df_final['Total Assets_prev'] == 0) & is_new_to_firm,
+        (df_final['Flow (MODE)'] >= threshold) & (df_final['Total Assets_prev'] <= 0) & is_new_to_firm,
 
         # B: Existing Client, but this is a New Model for them (Reallocation or Expansion)
-        (df_final['Flow (MODE)'] >= threshold) & (df_final['Total Assets_prev'] == 0) & (~is_new_to_firm),
+        (df_final['Flow (MODE)'] >= threshold) & (df_final['Total Assets_prev'] <= 0) & (~is_new_to_firm),
         
         # C: Existing Client, Existing Model (Simple Addition)
         (df_final['Flow (MODE)'] >= threshold) & (df_final['Total Assets_prev'] > 0)

@@ -92,7 +92,7 @@ def load_reps_from_xlsx(Fit_List_Dir, Fit_List_Sheet_Name):
             if reps[full_name.lower()].Lifetime_Total > total:
                 continue
         state = str(row['State']).strip()
-        email = str(row['Pol Email']).strip()
+        email = str(row['Pol Email']).strip() or "Not listed"
         territory = str(row['Territory']).strip()
         AE = ''
         #Sets central to East region and assigns AE accordingly
@@ -483,7 +483,7 @@ def apply_excel_highlighting(workbook, worksheet, df):
         
         # Check if it's a number and not NaN
         if pd.notna(mom_change_val):
-            if mom_change_val > 0:
+            if mom_change_val >= 0:
                 worksheet.write(excel_row, mom_change_idx, mom_change_val, pos_fmt)
             elif mom_change_val < 0:
                 worksheet.write(excel_row, mom_change_idx, mom_change_val, neg_fmt)

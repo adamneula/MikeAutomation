@@ -31,7 +31,7 @@ def SF_Upload_Sheet(Primerica_Dir, Primerica_Sheet):
     dfOut['Strategy'] = dfIn["ModelName"]
     dfOut['Opportunity Name'] = ('Primerica UMA - ' + dfOut['Rep Name (FIT)'] + ' - Account#' + 
             dfIn['accountid'].astype(str) + np.where(dfIn['Type'] == 'Addition', ' - Addition', ''))
-    #Account Id to be left blank and pulled from SF
+    dfOut['Account Id'] = dfIn['accountid']
     dfOut['Close Date'] = (pd.Timestamp.now().to_period('M') - 1).end_time.strftime('%m/%d/%Y')
     dfOut['Amount'] = dfIn['Flow (MODE)'].round(2)
     dfOut['Stage'] = 'Closed / Won'
@@ -50,10 +50,12 @@ def SF_Upload_Sheet(Primerica_Dir, Primerica_Sheet):
             lambda row: strategy_fees.get(row['Strategy'], 'Not Found'), 
             axis=1
         )
+    dfOut['OwnerId'] = np.where(dfOut['AE'] == 'MeiWah Wong', '005400000012ZAgAAM',
+                        np.where(dfOut['AE'] == 'Rob Hunt', '005400000012DscAAE', 'Not Found'))
         
     #Owner ID left blank to be filled in from SF data
     #Contact ID left blank to be filled in from SF data
-    
+    dfOut = dfOut.dropna(subset=['Type'])
     fileName = Utils.get_unique_filename(f'{Primerica_Sheet}_SF_Upload_{(pd.Timestamp.now() - pd.DateOffset(months=1)).strftime('%m-%Y')}.xlsx')
     dfOut.to_excel(fileName, sheet_name='To Upload', index=False)
     print('Generated salesforce upload sheet')
